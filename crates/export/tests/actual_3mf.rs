@@ -212,3 +212,19 @@ fn genuine_3mf_atomic_publication_respects_cancel_and_never_clobbers() {
     std::fs::remove_file(path).unwrap();
     std::fs::remove_dir(parent).unwrap();
 }
+
+#[test]
+fn readback_matches_checked_in_a3_01_reference_manifest() {
+    let (grid, request, source) = fixtures();
+    let mesh = build_mesh(&grid, &request).unwrap();
+    let exported = export_3mf(&mesh, &grid, &request, &source).unwrap();
+    let reference: serde_json::Value = serde_json::from_str(include_str!(
+        "../../engine/fixtures/A3-01.reference.json"
+    )).unwrap();
+    assert_eq!(reference["vertices"].as_u64(), Some(exported.vertices as u64));
+    assert_eq!(reference["triangles"].as_u64(), Some(exported.triangles as u64));
+    assert_eq!(reference["canonicalGeometrySha256"], exported.canonical_geometry_sha256);
+    for i in 0..6 {
+        assert!((reference["measuredAabbMm"][i].as_f64().unwrap() - exported.aabb_mm[i]).abs() < 1e-6);
+    }
+}
