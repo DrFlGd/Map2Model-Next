@@ -13,7 +13,9 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         _ => {
-            eprintln!(r#"{"apiVersion":"1.0.0","reasonCode":"UNSUPPORTED_OPERATION","message":"Initial engine accepts --health and --version"}"#);
+            eprintln!(
+                r#"{"apiVersion":"1.0.0","reasonCode":"UNSUPPORTED_OPERATION","message":"Initial engine accepts --health and --version"}"#
+            );
             ExitCode::from(2)
         }
     }
