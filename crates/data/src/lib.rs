@@ -1120,6 +1120,14 @@ mod tests {
                 permissions.set_readonly(false);
                 fs::set_permissions(&idx, permissions).unwrap();
             }
+            let original_index = fs::read(&idx).unwrap();
+            let mut tampered_index = original_index.clone();
+            *tampered_index.last_mut().unwrap() ^= 0x01;
+            fs::write(&idx, &tampered_index).unwrap();
+            assert!(reopen_registered_pmtiles(&registry, manifest.clone()).is_err());
+            assert!(reopened.verify_required_tiles(&[(1, 0, 0)]).is_err());
+            fs::write(&idx, original_index).unwrap();
+            assert!(reopen_registered_pmtiles(&registry, manifest.clone()).is_ok());
             fs::remove_file(&idx).map_err(|_| "INVALID_SOURCE: cannot remove synthetic index")?;
             assert!(reopen_registered_pmtiles(&registry, manifest.clone()).is_err());
             assert!(reopened.verify_required_tiles(&[(1, 0, 0)]).is_err());
