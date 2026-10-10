@@ -825,18 +825,29 @@ pub fn import_local_pmtiles(
         ));
     }
     // Never trust a pre-open metadata check as a memory-allocation bound.
-    let mut handle = OpenOptions::new().read(true).open(source_path)
+    let mut handle = OpenOptions::new()
+        .read(true)
+        .open(source_path)
         .map_err(|_| err("DATA_MISSING", "PMTiles file cannot be opened"))?;
-    let current = handle.metadata()
+    let current = handle
+        .metadata()
         .map_err(|_| err("INVALID_SOURCE", "PMTiles input handle invalid"))?;
     if !current.is_file() || current.len() != info.len() {
-        return Err(err("INVALID_SOURCE", "archive changed before bounded import"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "archive changed before bounded import",
+        ));
     }
     let mut bytes = Vec::new();
-    Read::by_ref(&mut handle).take(MAX_ARCHIVE_BYTES + 1).read_to_end(&mut bytes)
+    Read::by_ref(&mut handle)
+        .take(MAX_ARCHIVE_BYTES + 1)
+        .read_to_end(&mut bytes)
         .map_err(|_| err("INVALID_SOURCE", "PMTiles bounded read failed"))?;
     if bytes.len() as u64 != info.len() || bytes.len() as u64 > MAX_ARCHIVE_BYTES {
-        return Err(err("INVALID_SOURCE", "archive changed during bounded import"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "archive changed during bounded import",
+        ));
     }
     let latest = fs::symlink_metadata(source_path)
         .map_err(|_| err("DATA_MISSING", "archive disappeared during import"))?;
