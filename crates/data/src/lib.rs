@@ -445,7 +445,7 @@ impl ImportedSource {
         let sha = self.manifest.coverage_index_sha256.as_deref()
             .ok_or("DATA_MISSING: verified coverage index not declared")?;
         let stored = read_registry_entry(&self.registry_root.join("indices"), sha,
-            "idx", 4 + 36 + MAX_INDEX_TILES * 20)?;
+            "idx", INDEX_MAGIC.len() + 32 + 4 + MAX_INDEX_TILES * 20)?;
         let expected = index_bytes(&self.manifest.source_archive_sha256, &self.records)?;
         if stored != expected {
             return Err(err("HASH_MISMATCH", "registered index differs from canonical inspected archive"));
@@ -596,7 +596,7 @@ pub fn reopen_registered_pmtiles(registry_root: &Path, manifest: TerrainSourceMa
         return Err(err("HASH_MISMATCH", "registered source coverage differs from manifest"));
     }
     let stored_index = read_registry_entry(&registry_root.join("indices"), idx_sha,
-        "idx", 4 + 36 + MAX_INDEX_TILES * 20)?;
+        "idx", INDEX_MAGIC.len() + 32 + 4 + MAX_INDEX_TILES * 20)?;
     let expected = index_bytes(&manifest.source_archive_sha256, &inspected.tiles)?;
     if stored_index != expected {
         return Err(err("HASH_MISMATCH", "registry index differs from inspected source directory"));
