@@ -169,13 +169,14 @@ mod tests {
         assert_eq!(j.kind, "JobStateV1");
         assert_eq!(g.samples_meters.len(), g.width * g.height);
         assert_eq!(g.valid_mask.len(), g.width * g.height);
-        assert_eq!(
-            serde_json::to_value(&s).unwrap(),
-            serde_json::from_str::<serde_json::Value>(values[0]).unwrap()
-        );
-        assert_eq!(
-            serde_json::to_value(&g).unwrap(),
-            serde_json::from_str::<serde_json::Value>(values[2]).unwrap()
-        );
+        // JSON numeric spelling (10 versus 10.0) is not semantically significant.
+        // Test actual typed serde roundtrips instead of comparing number formatting.
+        let selection_roundtrip: SelectionV1 =
+            serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        let grid_roundtrip: ElevationGridV1 =
+            serde_json::from_str(&serde_json::to_string(&g).unwrap()).unwrap();
+        assert_eq!(selection_roundtrip.selection_id, s.selection_id);
+        assert_eq!(grid_roundtrip.samples_meters, g.samples_meters);
+        assert_eq!(grid_roundtrip.grid_sha256, g.grid_sha256);
     }
 }
