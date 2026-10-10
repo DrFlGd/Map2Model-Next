@@ -115,8 +115,7 @@ pub fn validate_manifest(v: &TerrainSourceManifestV1) -> Result<(), String> {
         return Err("INVALID_SOURCE: unsupported coverage status".into());
     }
     if v.coverage_status == "verified-tile-index" {
-        if v
-            .coverage_index_sha256
+        if v.coverage_index_sha256
             .as_deref()
             .is_none_or(|hash| !valid_sha(hash))
         {
