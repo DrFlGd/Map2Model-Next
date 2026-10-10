@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map2model.invalid/contracts/v1/MeshAnd3mfResultV1.schema.json",
+  "title": "MeshAnd3mfResultV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "geometry",
+    "artifact",
+    "canonicalGeometrySha256",
+    "provenanceSha256",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "MeshAnd3mfResultV1"
+    },
+    "jobId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "units",
+        "vertices",
+        "triangles",
+        "closed",
+        "oriented",
+        "nonManifoldEdges",
+        "degenerateTriangles",
+        "minimumMeasuredThicknessMm",
+        "measuredAabbMm",
+        "componentCount",
+        "partCount",
+        "volumeMm3",
+        "selfIntersectionStatus",
+        "validation"
+      ],
+      "properties": {
+        "units": {
+          "const": "millimeter"
+        },
+        "vertices": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "triangles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "oriented": {
+          "type": "boolean"
+        },
+        "nonManifoldEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "degenerateTriangles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimumMeasuredThicknessMm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "measuredAabbMm": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "number"
+          }
+        },
+        "componentCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "partCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "volumeMm3": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "selfIntersectionStatus": {
+          "enum": [
+            "passed",
+            "failed",
+            "not-checked"
+          ]
+        },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "checks",
+            "diagnostics"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "passed",
+                "failed"
+              ]
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "diagnostics": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "elementIndex": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exportToken",
+        "sha256",
+        "sizeBytes",
+        "format",
+        "conformance",
+        "coreSpecVersion",
+        "modelPart",
+        "provenancePart",
+        "validatorId",
+        "validatorVersion",
+        "diagnostics"
+      ],
+      "properties": {
+        "exportToken": {
+          "type": "string",
+          "pattern": "^m2m-export:[A-Za-z0-9._:-]+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "format": {
+          "const": "3mf"
+        },
+        "conformance": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "coreSpecVersion": {
+          "const": "1.4.0"
+        },
+        "modelPart": {
+          "const": "/3D/3dmodel.model"
+        },
+        "provenancePart": {
+          "const": "/Metadata/map2model.provenance.json"
+        },
+        "validatorId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validatorVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalGeometrySha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "provenanceSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

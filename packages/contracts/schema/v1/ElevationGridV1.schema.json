@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map2model.invalid/contracts/v1/ElevationGridV1.schema.json",
+  "title": "ElevationGridV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "gridId",
+    "selectionId",
+    "sourceManifestSha256",
+    "width",
+    "height",
+    "minEastMeters",
+    "maxNorthMeters",
+    "dxMeters",
+    "dyMeters",
+    "anchorWgs84",
+    "horizontalTransformId",
+    "verticalDatumId",
+    "storageConvention",
+    "gridSha256",
+    "storageMode",
+    "gridDataToken",
+    "gridDataSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "ElevationGridV1"
+    },
+    "gridId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "selectionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sourceManifestSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 4096
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 4096
+    },
+    "samplesMeters": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "maxItems": 4096
+    },
+    "validMask": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "boolean"
+      },
+      "maxItems": 4096
+    },
+    "minEastMeters": {
+      "type": "number"
+    },
+    "maxNorthMeters": {
+      "type": "number"
+    },
+    "dxMeters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "dyMeters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "anchorWgs84": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
+      ],
+      "items": false
+    },
+    "horizontalTransformId": {
+      "const": "WGS84-ENU-LINEARIZED-V1"
+    },
+    "verticalDatumId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "storageConvention": {
+      "const": "north-up-f64-row-major"
+    },
+    "gridSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "storageMode": {
+      "enum": [
+        "inline-fixture",
+        "local-binary-token"
+      ]
+    },
+    "gridDataToken": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^m2m-grid:[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gridDataSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "storageMode": {
+            "const": "inline-fixture"
+          }
+        },
+        "required": [
+          "storageMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "gridDataToken": {
+            "type": "null"
+          },
+          "gridDataSha256": {
+            "type": "null"
+          },
+          "samplesMeters": {
+            "type": "array",
+            "minItems": 4
+          },
+          "validMask": {
+            "type": "array",
+            "minItems": 4
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "storageMode": {
+            "const": "local-binary-token"
+          }
+        },
+        "required": [
+          "storageMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "samplesMeters": {
+            "type": "null"
+          },
+          "validMask": {
+            "type": "null"
+          },
+          "gridDataToken": {
+            "type": "string",
+            "pattern": "^m2m-grid:[a-f0-9]{64}$"
+          },
+          "gridDataSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  ]
+}

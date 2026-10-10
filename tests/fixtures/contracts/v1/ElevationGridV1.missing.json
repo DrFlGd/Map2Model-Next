@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "ElevationGridV1",
+  "gridId": "grid-synthetic-001",
+  "selectionId": "sel-9c13f5eaa44b01562cc6c26796669d44",
+  "sourceManifestSha256": "08f6fe9aa91e6415b162fc7b7f42616c302da72bf5fb946a03620c6627e121f3",
+  "width": 4,
+  "height": 3,
+  "samplesMeters": [
+    -5,
+    -1,
+    2,
+    6,
+    -3,
+    null,
+    4,
+    7,
+    -8,
+    1,
+    5,
+    12
+  ],
+  "validMask": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "minEastMeters": 0,
+  "maxNorthMeters": 16,
+  "dxMeters": 12,
+  "dyMeters": 8,
+  "anchorWgs84": [
+    -84.09,
+    39.741
+  ],
+  "horizontalTransformId": "WGS84-ENU-LINEARIZED-V1",
+  "verticalDatumId": "SYNTHETIC-RELATIVE-METERS",
+  "storageConvention": "north-up-f64-row-major",
+  "gridSha256": "8f9b1b045fa0f5c1d31da6f927a1da48c4e1e70d565763ecb37db5771aaff833",
+  "storageMode": "inline-fixture",
+  "gridDataToken": null,
+  "gridDataSha256": null
+}

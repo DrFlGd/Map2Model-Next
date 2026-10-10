@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "JobStateV1",
+  "jobId": "job-synthetic-001",
+  "correlationId": "corr-synthetic-001",
+  "phase": "queued",
+  "status": "queued",
+  "progress01": 0,
+  "reasonCode": null,
+  "message": "Synthetic integration job queued",
+  "details": {
+    "retryable": false,
+    "missingTiles": [],
+    "invalidSampleIndex": null,
+    "invalidMeshElementIndex": null
+  }
+}

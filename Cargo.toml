@@ -1,8 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/engine-cli"]
+members = ["crates/engine-cli", "crates/contracts"]
 
 [workspace.package]
 version = "0.0.1"
 edition = "2021"
-license = "MIT OR Apache-2.0"

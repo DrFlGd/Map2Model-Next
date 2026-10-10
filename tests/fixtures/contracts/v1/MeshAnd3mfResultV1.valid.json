@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "MeshAnd3mfResultV1",
+  "jobId": "job-synthetic-001",
+  "geometry": {
+    "units": "millimeter",
+    "vertices": 32,
+    "triangles": 60,
+    "closed": true,
+    "oriented": true,
+    "nonManifoldEdges": 0,
+    "degenerateTriangles": 0,
+    "minimumMeasuredThicknessMm": 4,
+    "measuredAabbMm": [
+      0,
+      0,
+      0,
+      180,
+      80,
+      204
+    ],
+    "componentCount": 1,
+    "partCount": 1,
+    "volumeMm3": 380000,
+    "selfIntersectionStatus": "passed",
+    "validation": {
+      "status": "passed",
+      "checks": [
+        "edge-incidence",
+        "oriented",
+        "nondegenerate",
+        "self-intersection"
+      ],
+      "diagnostics": []
+    }
+  },
+  "artifact": {
+    "exportToken": "m2m-export:synthetic-001",
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "sizeBytes": 1234,
+    "format": "3mf",
+    "conformance": "passed",
+    "coreSpecVersion": "1.4.0",
+    "modelPart": "/3D/3dmodel.model",
+    "provenancePart": "/Metadata/map2model.provenance.json",
+    "validatorId": "synthetic-validation-vector",
+    "validatorVersion": "1",
+    "diagnostics": []
+  },
+  "canonicalGeometrySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "provenanceSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "warnings": []
+}

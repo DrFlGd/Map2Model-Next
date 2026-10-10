@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "SelectionV1",
+  "selectionId": "sel-9c13f5eaa44b01562cc6c26796669d44",
+  "planet": "earth",
+  "horizontalCrs": "EPSG:4326",
+  "bbox": [
+    -84.09,
+    39.74,
+    -84.089,
+    39.741
+  ],
+  "terrainProfile": {
+    "targetGroundSampleMeters": 12,
+    "noDataPolicy": "fail",
+    "maxSamples": 1000000
+  }
+}
