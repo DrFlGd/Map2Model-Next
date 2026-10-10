@@ -4,12 +4,21 @@ import {mkdtemp,rm,readdir,readFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {selectionFromBbox,assertSelection} from '../apps/desktop/shared/selection.mjs';
+import {selectionDigest} from '../packages/contracts/src/canonical.mjs';
+import {validateSelection} from '../packages/contracts/src/validation.mjs';
 import {createProject,loadProject,saveProject,listProjects,assertProject} from '../apps/desktop/shared/projects.mjs';
 
 test('SelectionV1 builder uses the frozen contract digest and rejects invalid coordinate selections',()=>{
  const bounds=[-84.09,39.74,-84.087,39.742];
  const selection=selectionFromBbox(bounds);
  assert.equal(selection.kind,'SelectionV1');
+ assert.equal(selection.selectionId,'sel-'+selectionDigest(selection).slice(0,32));
+ assert.equal(validateSelection(selection).ok,true);
+ for(const coords of [[-84.09,39.74,-84.087,39.742],[0,0,0.005,0.005],[7,46.6,7.01,46.61]]){
+   const candidate=selectionFromBbox(coords);
+   assert.equal(candidate.selectionId,'sel-'+selectionDigest(candidate).slice(0,32));
+   assert.equal(validateSelection(candidate).ok,true);
+ }
  assert.equal(selection.selectionId.length,36);
  assert.equal(assertSelection(selection).selectionId,selection.selectionId);
  assert.deepEqual(selection.bbox,bounds);
