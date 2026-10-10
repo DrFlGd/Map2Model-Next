@@ -1120,6 +1120,11 @@ mod tests {
                 permissions.set_readonly(false);
                 fs::set_permissions(&idx, permissions).unwrap();
             }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&idx, fs::Permissions::from_mode(0o600)).unwrap();
+            }
             let original_index = fs::read(&idx).unwrap();
             let mut tampered_index = original_index.clone();
             *tampered_index.last_mut().unwrap() ^= 0x01;
