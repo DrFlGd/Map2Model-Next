@@ -20,7 +20,10 @@ fn handle_line(line: &str) -> Value {
         .get("requestId")
         .and_then(Value::as_str)
         .filter(|id| !id.is_empty() && id.len() <= 128)
-        .filter(|id| id.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"._:-".contains(&byte)));
+        .filter(|id| {
+            id.bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"._:-".contains(&byte))
+        });
     let request_id = match request_id {
         Some(id) => id,
         None => return error_response(None, "INVALID_REQUEST", "Invalid requestId"),
@@ -85,7 +88,11 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         _ => {
-            let message = error_response(None, "UNSUPPORTED_OPERATION", "Expected --stdio or --health");
+            let message = error_response(
+                None,
+                "UNSUPPORTED_OPERATION",
+                "Expected --stdio or --health",
+            );
             eprintln!("{message}");
             ExitCode::from(2)
         }
@@ -98,21 +105,25 @@ mod tests {
 
     #[test]
     fn health_does_not_claim_to_render_3mf() {
-        let result = handle_line(r#"{"apiVersion":"1.0.0","requestId":"test-1","operation":"health"}"#);
+        let result =
+            handle_line(r#"{"apiVersion":"1.0.0","requestId":"test-1","operation":"health"}"#);
         assert_eq!(result["status"], "ok");
         assert_eq!(result["capabilities"].as_array().unwrap().len(), 0);
     }
 
     #[test]
     fn unknown_operation_reports_typed_error() {
-        let result = handle_line(r#"{"apiVersion":"1.0.0","requestId":"test-2","operation":"generate"}"#);
+        let result =
+            handle_line(r#"{"apiVersion":"1.0.0","requestId":"test-2","operation":"generate"}"#);
         assert_eq!(result["reasonCode"], "UNSUPPORTED_OPERATION");
     }
 
     #[test]
     fn invalid_requests_do_not_echo_data() {
         assert_eq!(handle_line("not json")["reasonCode"], "INVALID_REQUEST");
-        let result = handle_line(r#"{"apiVersion":"1.0.0","requestId":"../../../secret","operation":"health"}"#);
+        let result = handle_line(
+            r#"{"apiVersion":"1.0.0","requestId":"../../../secret","operation":"health"}"#,
+        );
         assert_eq!(result["reasonCode"], "INVALID_REQUEST");
         assert_eq!(result["requestId"], Value::Null);
     }
