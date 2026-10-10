@@ -1217,6 +1217,58 @@ mod tests {
         ))
     }
     #[test]
+    fn closed_selection_exact_xyz_tile_seams_never_appear_covered_with_missing_neighbor() {
+        // PMTiles z=1 has longitude seam at lon=0 and latitude seam at lat=0.
+        // Archive only contains x=0 tile IDs 1 and 2 (north/south), never x=1.
+        let root = temporary();
+        fs::create_dir_all(&root).unwrap();
+        let result = (|| -> Result<(), String> {
+            let mut lon_archive = fixture();
+            put_i32(&mut lon_archive, 102, -10000); // west -0.001
+            put_i32(&mut lon_archive, 110, 10000);  // east +0.001
+            let input = root.join("longitude-seam.pmtiles");
+            fs::write(&input, lon_archive).unwrap();
+            let source = import_local_pmtiles(&input, &root.join("registry-lon"), &declaration())?;
+            let mut selection: SelectionV1 = serde_json::from_str(include_str!(
+                "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
+            )).unwrap();
+            for bounds in [
+                [-0.0005, 39.741, 0.0, 39.742], // exact east edge
+                [0.0, 39.741, 0.0005, 39.742],  // exact west edge
+                [-0.0005, 39.741, 0.0005, 39.742], // seam inside rectangle
+            ] {
+                selection.bbox = bounds;
+                selection.selection_id = format!("sel-{}", &canonical::selection_digest(&selection)?[..32]);
+                assert!(validation::validate_selection(&selection).is_ok());
+                assert!(source.verify_selection_coverage(&selection, 1)
+                    .unwrap_err().starts_with("DATA_MISSING"));
+            }
+            // A separate archive has tile IDs 1 and 4 (two northern tiles)
+            // but NO southern tile IDs 2 or 3: both equator-edge directions must fail.
+            let mut lat_archive = fixture();
+            lat_archive[HEADER_BYTES + 2] = 3; // delta ID +3 instead of +1
+            put_i32(&mut lat_archive, 106, -10000);
+            put_i32(&mut lat_archive, 114, 10000);
+            let input = root.join("latitude-seam.pmtiles");
+            fs::write(&input, lat_archive).unwrap();
+            let source = import_local_pmtiles(&input, &root.join("registry-lat"), &declaration())?;
+            for bounds in [
+                [-84.089, -0.0005, -84.088, 0.0], // north edge on seam
+                [-84.089, 0.0, -84.088, 0.0005], // south edge on seam
+                [-84.089, -0.0005, -84.088, 0.0005],
+            ] {
+                selection.bbox = bounds;
+                selection.selection_id = format!("sel-{}", &canonical::selection_digest(&selection)?[..32]);
+                assert!(validation::validate_selection(&selection).is_ok());
+                assert!(source.verify_selection_coverage(&selection, 1)
+                    .unwrap_err().starts_with("DATA_MISSING"));
+            }
+            Ok(())
+        })();
+        let _ = fs::remove_dir_all(root);
+        result.unwrap();
+    }
+    #[test]
     fn hilbert_tile_ids_follow_pmtiles_v3_reference() {
         for (z, x, y, id) in [
             (0, 0, 0, 0),
