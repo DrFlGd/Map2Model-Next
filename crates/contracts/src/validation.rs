@@ -71,23 +71,73 @@ pub fn validate_selection(v: &SelectionV1) -> Result<(), String> {
     Ok(())
 }
 pub fn validate_manifest(v: &TerrainSourceManifestV1) -> Result<(), String> {
+    // These wire discriminants are excluded from canonical manifest hashing.
+    // serde parsing alone does not enforce the V1 JSON-Schema const values.
+    if v.schema_version != "1.0.0" || v.kind != "TerrainSourceManifestV1" {
+        return Err("INVALID_SOURCE: unsupported manifest version or kind".into());
+    }
+    for value in [
+        &v.source_name,
+        &v.release_id,
+        &v.archive_id,
+        &v.horizontal_crs,
+        &v.vertical_datum_id,
+        &v.native_resolution_source,
+        &v.license_identifier,
+        &v.attribution,
+        &v.decoder_version,
+    ] {
+        if value.is_empty() {
+            return Err("INVALID_SOURCE: required source or rights metadata missing".into());
+        }
+    }
+    if v.source_bytes < 1 || v.source_bytes > 9_007_199_254_740_991 {
+        return Err("INVALID_SOURCE: archive size outside positive JS-safe range".into());
+    }
+    if !finite(v.nominal_ground_sample_meters) || v.nominal_ground_sample_meters <= 0.0 {
+        return Err("INVALID_SOURCE: nominal spacing must be finite and positive".into());
+    }
+    if let Some(uncertainty) = v.uncertainty_meters {
+        if !finite(uncertainty) || uncertainty < 0.0 {
+            return Err("INVALID_SOURCE: uncertainty must be nonnegative and finite".into());
+        }
+    }
+    let valid_sha = |hash: &str| {
+        hash.len() == 64
+            && hash
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    };
+    if !valid_sha(&v.source_archive_sha256) || !valid_sha(&v.manifest_sha256) {
+        return Err("INVALID_SOURCE: invalid source or manifest SHA-256".into());
+    }
+    if v.coverage_status != "verified-tile-index" && v.coverage_status != "envelope-only" {
+        return Err("INVALID_SOURCE: unsupported coverage status".into());
+    }
+    if v.coverage_status == "verified-tile-index" {
+        if v
+            .coverage_index_sha256
+            .as_deref()
+            .is_none_or(|hash| !valid_sha(hash))
+        {
+            return Err("DATA_MISSING: declared tile index SHA-256 missing or malformed".into());
+        }
+    } else if v.coverage_index_sha256.is_some() {
+        return Err("INVALID_SOURCE: envelope cannot claim a verified index".into());
+    }
+    if v.vertical_datum_status != "known"
+        && v.vertical_datum_status != "unknown"
+        && v.vertical_datum_status != "unsupported"
+    {
+        return Err("INVALID_SOURCE: unsupported vertical datum status".into());
+    }
     if !valid_bbox(v.coverage_bbox)
         || v.local_asset_token != format!("m2m-asset:{}", v.source_archive_sha256)
     {
         return Err("HASH_MISMATCH: archive token or coverage invalid".into());
     }
-    if v.coverage_status == "verified-tile-index" {
-        if v.coverage_index_sha256.is_none() {
-            return Err("DATA_MISSING: missing verified tile index".into());
-        }
-    } else if v.coverage_status != "envelope-only" || v.coverage_index_sha256.is_some() {
-        return Err("INVALID_SOURCE: invalid coverage declaration".into());
-    }
     if v.vertical_datum_status != "known" || v.vertical_datum_id.is_empty() {
         return Err("UNSUPPORTED_DATUM: source datum not verified".into());
-    }
-    if !finite(v.nominal_ground_sample_meters) || v.nominal_ground_sample_meters <= 0.0 {
-        return Err("INVALID_SOURCE: nominal spacing invalid".into());
     }
     if canonical::manifest_digest(v)? != v.manifest_sha256 {
         return Err("HASH_MISMATCH: manifest SHA256 mismatch".into());
