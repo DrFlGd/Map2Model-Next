@@ -348,7 +348,10 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
             if children.first().is_none_or(|child| child.id != e.id)
                 || children.iter().any(|child| child.run == 0)
             {
-                return Err(err("INVALID_SOURCE", "leaf must begin at parent ID and contain tile runs"));
+                return Err(err(
+                    "INVALID_SOURCE",
+                    "leaf must begin at parent ID and contain tile runs",
+                ));
             }
             children
         } else {
@@ -359,7 +362,10 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
                 t.id.checked_add(t.run)
                     .ok_or_else(|| err("INVALID_SOURCE", "tile run overflow"))?;
             if next_start.is_some_and(|limit| end > limit) {
-                return Err(err("INVALID_SOURCE", "tile run crosses the next root boundary"));
+                return Err(err(
+                    "INVALID_SOURCE",
+                    "tile run crosses the next root boundary",
+                ));
             }
             let offset = h
                 .tiles
@@ -442,13 +448,23 @@ impl ImportedSource {
     /// Re-authenticate the durable index before using any cached in-memory lookup.
     /// A header or digest declaration is NOT a coverage proof.
     fn verify_registered_index(&self) -> Result<(), String> {
-        let sha = self.manifest.coverage_index_sha256.as_deref()
+        let sha = self
+            .manifest
+            .coverage_index_sha256
+            .as_deref()
             .ok_or("DATA_MISSING: verified coverage index not declared")?;
-        let stored = read_registry_entry(&self.registry_root.join("indices"), sha,
-            "idx", INDEX_MAGIC.len() + 32 + 4 + MAX_INDEX_TILES * 20)?;
+        let stored = read_registry_entry(
+            &self.registry_root.join("indices"),
+            sha,
+            "idx",
+            INDEX_MAGIC.len() + 32 + 4 + MAX_INDEX_TILES * 20,
+        )?;
         let expected = index_bytes(&self.manifest.source_archive_sha256, &self.records)?;
         if stored != expected {
-            return Err(err("HASH_MISMATCH", "registered index differs from canonical inspected archive"));
+            return Err(err(
+                "HASH_MISMATCH",
+                "registered index differs from canonical inspected archive",
+            ));
         }
         Ok(())
     }
@@ -467,9 +483,11 @@ impl ImportedSource {
     }
     /// Generate the complete conservative XYZ tile set touched by a frozen WGS84
     /// selection. Never mark Generation Ready from header bbox/zoom alone.
-    pub fn verify_selection_coverage(&self, selection: &SelectionV1, zoom: u8)
-        -> Result<usize, String>
-    {
+    pub fn verify_selection_coverage(
+        &self,
+        selection: &SelectionV1,
+        zoom: u8,
+    ) -> Result<usize, String> {
         validation::validate_selection(selection)?;
         if zoom < self.min_zoom || zoom > self.max_zoom {
             return Err(err("DATA_MISSING", "requested source zoom not present"));
@@ -477,30 +495,41 @@ impl ImportedSource {
         let b = selection.bbox;
         let h = self.manifest.coverage_bbox;
         if b[0] < h[0] || b[1] < h[1] || b[2] > h[2] || b[3] > h[3] {
-            return Err(err("DATA_MISSING", "selection outside source geographic envelope"));
+            return Err(err(
+                "DATA_MISSING",
+                "selection outside source geographic envelope",
+            ));
         }
         let n = (1_u64 << zoom) as f64;
         let x = |lon: f64| ((lon + 180.) * n / 360.).clamp(0., n);
         let y = |lat: f64| {
             let p = lat.to_radians();
-            ((1. - (p.tan() + 1. / p.cos()).ln() / std::f64::consts::PI) / 2. * n)
-                .clamp(0., n)
+            ((1. - (p.tan() + 1. / p.cos()).ln() / std::f64::consts::PI) / 2. * n).clamp(0., n)
         };
         let lower = |f: f64| f.floor().min(n - 1.) as u32;
         let upper = |f: f64| {
-            if f == f.floor() && f > 0. { (f as u32 - 1).min(n as u32 - 1) }
-            else { lower(f) }
+            if f == f.floor() && f > 0. {
+                (f as u32 - 1).min(n as u32 - 1)
+            } else {
+                lower(f)
+            }
         };
         let (x0, x1) = (lower(x(b[0])), upper(x(b[2])));
         let (y0, y1) = (lower(y(b[3])), upper(y(b[1])));
         if x1 < x0 || y1 < y0 {
-            return Err(err("INVALID_SELECTION", "selection yields empty XYZ tile range"));
+            return Err(err(
+                "INVALID_SELECTION",
+                "selection yields empty XYZ tile range",
+            ));
         }
         let count = (u64::from(x1) - u64::from(x0) + 1)
             .checked_mul(u64::from(y1) - u64::from(y0) + 1)
             .ok_or("OUT_OF_MEMORY: selection tile count overflow")?;
         if count > MAX_COVERAGE_QUERY_TILES as u64 {
-            return Err(err("OUT_OF_MEMORY", "selection tile coverage exceeds query limit"));
+            return Err(err(
+                "OUT_OF_MEMORY",
+                "selection tile coverage exceeds query limit",
+            ));
         }
         let mut needed = Vec::with_capacity(count as usize);
         for x in x0..=x1 {
@@ -516,8 +545,12 @@ impl ImportedSource {
         self.verify_required_tiles(&[(z, x, y)])?;
         let id = tile_id(z, x, y)?;
         let token = &self.manifest.source_archive_sha256;
-        let bytes = read_registry_entry(&self.registry_root.join("assets"), token,
-            "pmtiles", MAX_ARCHIVE_BYTES as usize)?;
+        let bytes = read_registry_entry(
+            &self.registry_root.join("assets"),
+            token,
+            "pmtiles",
+            MAX_ARCHIVE_BYTES as usize,
+        )?;
         let record = &self.records[&id];
         let result = decompress(
             section(
@@ -534,72 +567,123 @@ impl ImportedSource {
     }
 }
 /// Open registry bytes with a bounded handle read and recheck path identity.
- /// The registry directory is an authorized, private native root (never UI-supplied).
-fn read_registry_entry(directory: &Path, sha: &str, ext: &str, cap: usize)
-    -> Result<Vec<u8>, String>
-{
+/// The registry directory is an authorized, private native root (never UI-supplied).
+fn read_registry_entry(
+    directory: &Path,
+    sha: &str,
+    ext: &str,
+    cap: usize,
+) -> Result<Vec<u8>, String> {
     let d = fs::symlink_metadata(directory)
         .map_err(|_| err("DATA_MISSING", "native registry directory unavailable"))?;
     if !d.is_dir() || d.file_type().is_symlink() {
-        return Err(err("INVALID_SOURCE", "registry path must be a trusted directory"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "registry path must be a trusted directory",
+        ));
     }
-    if sha.len() != 64 || !sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+    if sha.len() != 64
+        || !sha
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
         return Err(err("INVALID_SOURCE", "untrusted registry identity"));
     }
     let path = directory.join(format!("{sha}.{ext}"));
     let info = fs::symlink_metadata(&path)
         .map_err(|_| err("DATA_MISSING", "registered native token unavailable"))?;
     if !info.is_file() || info.file_type().is_symlink() || info.len() > cap as u64 {
-        return Err(err("INVALID_SOURCE", "registry item must be a bounded regular file"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "registry item must be a bounded regular file",
+        ));
     }
-    let mut file = OpenOptions::new().read(true).open(&path)
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(&path)
         .map_err(|_| err("DATA_MISSING", "registered native item unreadable"))?;
-    let handle = file.metadata().map_err(|_| err("INVALID_SOURCE", "registry handle invalid"))?;
+    let handle = file
+        .metadata()
+        .map_err(|_| err("INVALID_SOURCE", "registry handle invalid"))?;
     if !handle.is_file() || handle.len() != info.len() {
         return Err(err("INVALID_SOURCE", "registry handle metadata changed"));
     }
     let mut bytes = Vec::new();
-    file.by_ref().take(cap as u64 + 1).read_to_end(&mut bytes)
+    file.by_ref()
+        .take(cap as u64 + 1)
+        .read_to_end(&mut bytes)
         .map_err(|_| err("INVALID_SOURCE", "registered bounded read failed"))?;
     if bytes.len() > cap || bytes.len() as u64 != info.len() {
-        return Err(err("INVALID_SOURCE", "registry asset changed or is too large"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "registry asset changed or is too large",
+        ));
     }
     let latest = fs::symlink_metadata(&path)
         .map_err(|_| err("DATA_MISSING", "registered native item was removed"))?;
     if !latest.is_file() || latest.file_type().is_symlink() || latest.len() != info.len() {
-        return Err(err("INVALID_SOURCE", "registered path mutated while reading"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "registered path mutated while reading",
+        ));
     }
     if digest(&bytes) != sha {
-        return Err(err("HASH_MISMATCH", "registered native token bytes differ from SHA-256"));
+        return Err(err(
+            "HASH_MISMATCH",
+            "registered native token bytes differ from SHA-256",
+        ));
     }
     Ok(bytes)
 }
 
 /// Native restart/re-hydration from an independently authenticated archive AND index.
 /// A serialized manifest alone never proves coverage; the registry must be explicit.
-pub fn reopen_registered_pmtiles(registry_root: &Path, manifest: TerrainSourceManifestV1)
-    -> Result<ImportedSource, String>
-{
+pub fn reopen_registered_pmtiles(
+    registry_root: &Path,
+    manifest: TerrainSourceManifestV1,
+) -> Result<ImportedSource, String> {
     validation::validate_manifest(&manifest)?;
     if manifest.coverage_status != "verified-tile-index" {
-        return Err(err("DATA_MISSING", "source has no declared immutable coverage index"));
+        return Err(err(
+            "DATA_MISSING",
+            "source has no declared immutable coverage index",
+        ));
     }
-    let idx_sha = manifest.coverage_index_sha256.as_deref()
+    let idx_sha = manifest
+        .coverage_index_sha256
+        .as_deref()
         .ok_or("DATA_MISSING: missing registered index identity")?;
-    let archive_bytes = read_registry_entry(&registry_root.join("assets"),
-        &manifest.source_archive_sha256, "pmtiles", MAX_ARCHIVE_BYTES as usize)?;
+    let archive_bytes = read_registry_entry(
+        &registry_root.join("assets"),
+        &manifest.source_archive_sha256,
+        "pmtiles",
+        MAX_ARCHIVE_BYTES as usize,
+    )?;
     if archive_bytes.len() as u64 != manifest.source_bytes {
-        return Err(err("HASH_MISMATCH", "registered source length differs from manifest"));
+        return Err(err(
+            "HASH_MISMATCH",
+            "registered source length differs from manifest",
+        ));
     }
     let inspected = inspect(&archive_bytes)?;
     if inspected.header.bbox != manifest.coverage_bbox {
-        return Err(err("HASH_MISMATCH", "registered source coverage differs from manifest"));
+        return Err(err(
+            "HASH_MISMATCH",
+            "registered source coverage differs from manifest",
+        ));
     }
-    let stored_index = read_registry_entry(&registry_root.join("indices"), idx_sha,
-        "idx", INDEX_MAGIC.len() + 32 + 4 + MAX_INDEX_TILES * 20)?;
+    let stored_index = read_registry_entry(
+        &registry_root.join("indices"),
+        idx_sha,
+        "idx",
+        INDEX_MAGIC.len() + 32 + 4 + MAX_INDEX_TILES * 20,
+    )?;
     let expected = index_bytes(&manifest.source_archive_sha256, &inspected.tiles)?;
     if stored_index != expected {
-        return Err(err("HASH_MISMATCH", "registry index differs from inspected source directory"));
+        return Err(err(
+            "HASH_MISMATCH",
+            "registry index differs from inspected source directory",
+        ));
     }
     let count = inspected.tiles.len();
     Ok(ImportedSource {
@@ -871,11 +955,19 @@ mod tests {
             encoded_varint(id - previous_id, &mut out);
             previous_id = id;
         }
-        for &(_, run, _, _) in entries { encoded_varint(run, &mut out); }
-        for &(_, _, len, _) in entries { encoded_varint(len, &mut out); }
+        for &(_, run, _, _) in entries {
+            encoded_varint(run, &mut out);
+        }
+        for &(_, _, len, _) in entries {
+            encoded_varint(len, &mut out);
+        }
         let mut last_end = None;
         for &(_, _, len, offset) in entries {
-            let wire = if last_end == Some(offset) { 0 } else { offset + 1 };
+            let wire = if last_end == Some(offset) {
+                0
+            } else {
+                offset + 1
+            };
             encoded_varint(wire, &mut out);
             last_end = Some(offset + len);
         }
@@ -892,13 +984,17 @@ mod tests {
     fn leaf_gzip_fixture(parent_start: u64, extra_root: bool) -> Vec<u8> {
         let tile = zipped(WEBP);
         let tile2_offset = tile.len() as u64;
-        let tile_entries = [(1, 1, tile.len() as u64, 0),
-            (2, 1, tile.len() as u64, tile2_offset)];
+        let tile_entries = [
+            (1, 1, tile.len() as u64, 0),
+            (2, 1, tile.len() as u64, tile2_offset),
+        ];
         let leaf = zipped(&synthetic_directory(&tile_entries));
         let roots = if extra_root {
             // Second root starts at ID2: child ID2 in first leaf is unreachable.
-            synthetic_directory(&[(parent_start, 0, leaf.len() as u64, 0),
-                (2, 1, tile.len() as u64, tile2_offset)])
+            synthetic_directory(&[
+                (parent_start, 0, leaf.len() as u64, 0),
+                (2, 1, tile.len() as u64, tile2_offset),
+            ])
         } else {
             synthetic_directory(&[(parent_start, 0, leaf.len() as u64, 0)])
         };
@@ -922,14 +1018,21 @@ mod tests {
         put_u64(&mut out, 72, 2);
         put_u64(&mut out, 80, 2);
         put_u64(&mut out, 88, 2);
-        out[96] = 1; out[97] = 2; out[98] = 2; out[99] = 4;
-        out[100] = 1; out[101] = 1;
+        out[96] = 1;
+        out[97] = 2;
+        out[98] = 2;
+        out[99] = 4;
+        out[100] = 1;
+        out[101] = 1;
         put_i32(&mut out, 102, -840900000);
         put_i32(&mut out, 106, 397400000);
         put_i32(&mut out, 110, -840800000);
         put_i32(&mut out, 114, 397500000);
-        out.extend(root); out.extend(meta); out.extend(leaf);
-        out.extend(tile.clone()); out.extend(tile);
+        out.extend(root);
+        out.extend(meta);
+        out.extend(leaf);
+        out.extend(tile.clone());
+        out.extend(tile);
         out
     }
     #[test]
@@ -939,8 +1042,12 @@ mod tests {
         assert_eq!(inspected.tiles.len(), 2);
         assert!(inspected.tiles.contains_key(&tile_id(1, 0, 0).unwrap()));
         assert!(inspected.tiles.contains_key(&tile_id(1, 0, 1).unwrap()));
-        assert!(inspect(&leaf_gzip_fixture(2, false)).unwrap_err().starts_with("INVALID_SOURCE"));
-        assert!(inspect(&leaf_gzip_fixture(1, true)).unwrap_err().starts_with("INVALID_SOURCE"));
+        assert!(inspect(&leaf_gzip_fixture(2, false))
+            .unwrap_err()
+            .starts_with("INVALID_SOURCE"));
+        assert!(inspect(&leaf_gzip_fixture(1, true))
+            .unwrap_err()
+            .starts_with("INVALID_SOURCE"));
         let mut corrupt = valid.clone();
         corrupt[HEADER_BYTES] ^= 0xff; // Deflate root no longer decodes to a directory.
         assert!(inspect(&corrupt).is_err());
@@ -970,13 +1077,16 @@ mod tests {
             let reopened = reopen_registered_pmtiles(&registry, manifest.clone())?;
             let selection: SelectionV1 = serde_json::from_str(include_str!(
                 "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
-            )).unwrap();
+            ))
+            .unwrap();
             assert_eq!(reopened.verify_selection_coverage(&selection, 1)?, 1);
             assert!(reopened.verify_selection_coverage(&selection, 2).is_err());
             assert!(reopened.verify_required_tiles(&[(1, 1, 0)]).is_err());
             assert_eq!(reopened.read_registered_tile(1, 0, 0)?, WEBP);
-            let idx = registry.join("indices")
-                .join(format!("{}.idx", manifest.coverage_index_sha256.as_ref().unwrap()));
+            let idx = registry.join("indices").join(format!(
+                "{}.idx",
+                manifest.coverage_index_sha256.as_ref().unwrap()
+            ));
             fs::remove_file(&idx).map_err(|_| "INVALID_SOURCE: cannot remove synthetic index")?;
             assert!(reopen_registered_pmtiles(&registry, manifest.clone()).is_err());
             assert!(reopened.verify_required_tiles(&[(1, 0, 0)]).is_err());
@@ -1008,8 +1118,10 @@ mod tests {
                         .map(|imported| imported.manifest.manifest_sha256)
                 }));
             }
-            let hashes: Vec<String> = workers.into_iter()
-                .map(|thread| thread.join().unwrap().unwrap()).collect();
+            let hashes: Vec<String> = workers
+                .into_iter()
+                .map(|thread| thread.join().unwrap().unwrap())
+                .collect();
             assert!(hashes.iter().all(|hash| hash == &hashes[0]));
             assert_eq!(fs::read(crashed).unwrap(), b"partial");
             Ok(())
