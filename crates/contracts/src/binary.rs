@@ -5,6 +5,8 @@ use sha2::{Digest, Sha256};
 const MAGIC: &[u8] = b"M2M-GRID-BIN-1\0";
 const MAX_SAMPLES: usize = 1_000_000;
 
+pub type DecodedGridPayload = (usize, usize, Vec<Option<f64>>, Vec<bool>);
+
 fn read_u32(data: &[u8], position: &mut usize) -> Result<u32, String> {
     let end = position
         .checked_add(4)
@@ -19,7 +21,7 @@ fn read_u32(data: &[u8], position: &mut usize) -> Result<u32, String> {
 }
 pub fn decode_grid_binary(
     data: &[u8],
-) -> Result<(usize, usize, Vec<Option<f64>>, Vec<bool>), String> {
+) -> Result<DecodedGridPayload, String> {
     if !data.starts_with(MAGIC) {
         return Err("INVALID_SOURCE: grid magic invalid".into());
     }
