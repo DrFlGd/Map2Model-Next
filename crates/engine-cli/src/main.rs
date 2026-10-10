@@ -5,7 +5,10 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     match env::args().nth(1).as_deref() {
         Some("--health") => {
-            println!("{}", r#"{"apiVersion":"1.0.0","status":"ok","capabilities":[]}"#);
+            println!(
+                "{}",
+                r#"{"apiVersion":"1.0.0","status":"ok","capabilities":[]}"#
+            );
             ExitCode::SUCCESS
         }
         Some("--version") => {
