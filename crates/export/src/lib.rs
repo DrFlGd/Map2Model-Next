@@ -22,7 +22,10 @@ pub struct ExportError {
 }
 impl ExportError {
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
-        Self { code, message: message.into() }
+        Self {
+            code,
+            message: message.into(),
+        }
     }
     fn contract(message: String) -> Self {
         let code = match message.split(':').next().unwrap_or("") {
@@ -74,13 +77,22 @@ pub fn prepare_export(
     validate_build(request, grid).map_err(ExportError::contract)?;
     validate_manifest(source).map_err(ExportError::contract)?;
     if source.manifest_sha256 != grid.source_manifest_sha256 {
-        return Err(ExportError::new("HASH_MISMATCH", "grid and source manifest differ"));
+        return Err(ExportError::new(
+            "HASH_MISMATCH",
+            "grid and source manifest differ",
+        ));
     }
     if source.vertical_datum_id != grid.vertical_datum_id {
-        return Err(ExportError::new("UNSUPPORTED_DATUM", "source and grid vertical datum differ"));
+        return Err(ExportError::new(
+            "UNSUPPORTED_DATUM",
+            "source and grid vertical datum differ",
+        ));
     }
     if source.horizontal_crs != "EPSG:4326" {
-        return Err(ExportError::new("INVALID_CRS", "source CRS not supported by G1 exporter"));
+        return Err(ExportError::new(
+            "INVALID_CRS",
+            "source CRS not supported by G1 exporter",
+        ));
     }
     let verified = inspect_mesh(&result.mesh)?;
     if result.geometry.vertices != verified.vertices
@@ -95,15 +107,27 @@ pub fn prepare_export(
         || result.geometry.self_intersection_status != "passed"
         || result.geometry.validation.status != "passed"
     {
-        return Err(ExportError::new("INVALID_GEOMETRY", "mesh QA envelope is inconsistent"));
+        return Err(ExportError::new(
+            "INVALID_GEOMETRY",
+            "mesh QA envelope is inconsistent",
+        ));
     }
-    if result.geometry.measured_aabb_mm.iter().zip(verified.measured_aabb_mm.iter())
+    if result
+        .geometry
+        .measured_aabb_mm
+        .iter()
+        .zip(verified.measured_aabb_mm.iter())
         .any(|(a, b)| !a.is_finite() || (a - b).abs() > 1e-6)
         || !result.geometry.volume_mm3.is_finite()
         || (result.geometry.volume_mm3 - verified.volume_mm3).abs() > 1e-6
-        || (result.geometry.minimum_measured_thickness_mm - verified.minimum_measured_thickness_mm).abs() > 1e-6
+        || (result.geometry.minimum_measured_thickness_mm - verified.minimum_measured_thickness_mm)
+            .abs()
+            > 1e-6
     {
-        return Err(ExportError::new("INVALID_GEOMETRY", "measured QA data does not match mesh"));
+        return Err(ExportError::new(
+            "INVALID_GEOMETRY",
+            "measured QA data does not match mesh",
+        ));
     }
     if (verified.measured_aabb_mm[3] - request.model_width_mm).abs() > 0.05
         || (verified.measured_aabb_mm[4] - request.model_height_mm).abs() > 0.05
@@ -111,18 +135,31 @@ pub fn prepare_export(
         || verified.measured_aabb_mm[1].abs() > 0.05
         || verified.measured_aabb_mm[2].abs() > 0.05
         || verified.minimum_measured_thickness_mm + 0.05
-            < request.base_thickness_mm.max(request.minimum_feature_thickness_mm)
+            < request
+                .base_thickness_mm
+                .max(request.minimum_feature_thickness_mm)
     {
-        return Err(ExportError::new("INVALID_DIMENSIONS", "terrain size or minimum thickness differs from build request"));
+        return Err(ExportError::new(
+            "INVALID_DIMENSIONS",
+            "terrain size or minimum thickness differs from build request",
+        ));
     }
-    let triangles = result.mesh.triangles.iter().map(|triangle| MeshTriangle {
-        indices: *triangle,
-        part_id: "terrain".to_owned(),
-    }).collect::<Vec<_>>();
+    let triangles = result
+        .mesh
+        .triangles
+        .iter()
+        .map(|triangle| MeshTriangle {
+            indices: *triangle,
+            part_id: "terrain".to_owned(),
+        })
+        .collect::<Vec<_>>();
     let digest = canonical_mesh_digest(&result.mesh.vertices_mm, &triangles)
         .map_err(|message| ExportError::new("INVALID_GEOMETRY", message))?;
     if digest != result.canonical_geometry_sha256 {
-        return Err(ExportError::new("HASH_MISMATCH", "canonical geometry digest differs from mesh bytes"));
+        return Err(ExportError::new(
+            "HASH_MISMATCH",
+            "canonical geometry digest differs from mesh bytes",
+        ));
     }
 
     // serde_json::Map is a BTreeMap without preserve_order. This produces
@@ -167,10 +204,14 @@ pub fn prepare_export(
         "meshThicknessMm": verified.minimum_measured_thickness_mm,
         "meshSelfIntersectionStatus": verified.self_intersection_status
     });
-    let bytes = serde_json::to_vec(&provenance)
-        .map_err(|e| ExportError::new("INTERNAL_ERROR", format!("provenance serialization: {e}")))?;
+    let bytes = serde_json::to_vec(&provenance).map_err(|e| {
+        ExportError::new("INTERNAL_ERROR", format!("provenance serialization: {e}"))
+    })?;
     if bytes.len() > MAX_PROVENANCE_BYTES {
-        return Err(ExportError::new("OUT_OF_MEMORY", "provenance exceeds 64KiB"));
+        return Err(ExportError::new(
+            "OUT_OF_MEMORY",
+            "provenance exceeds 64KiB",
+        ));
     }
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
     Ok(PreparedExport {
