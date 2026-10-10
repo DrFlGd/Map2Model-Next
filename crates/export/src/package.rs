@@ -2,7 +2,7 @@
 //! ZIP/XML readback. Slicer acceptance and the official Core test suite
 //! remain separate external release gates.
 use crate::{
-    prepare_export, ExportError, PreparedExport, CORE_VERSION, MODEL_PART, PROVENANCE_PART,
+    prepare_export, ExportError, PreparedExport, MODEL_PART, PROVENANCE_PART,
 };
 use map2model_contracts::canonical::{canonical_mesh_digest, MeshTriangle};
 use map2model_contracts::{ElevationGridV1, TerrainBuildRequestV1, TerrainSourceManifestV1};
@@ -220,7 +220,7 @@ fn parse_xml(xml: &str) -> Result<Document<'_>, ExportError> {
 fn required_attr<'a, 'input>(
     n: roxmltree::Node<'a, 'input>,
     attr: &str,
-) -> Result<&'input str, ExportError> {
+) -> Result<&'a str, ExportError> {
     n.attribute(attr)
         .ok_or_else(|| invalid(format!("3MF XML required attribute {attr} absent")))
 }
@@ -311,7 +311,7 @@ pub fn inspect_3mf(
     let content_xml =
         std::str::from_utf8(&content).map_err(|_| invalid("non-UTF8 OPC Content Types"))?;
     let types = parse_xml(content_xml)?;
-    if types.root_element().tag_name() != (OPC_TYPES_NS, "Types") {
+    if !types.root_element().has_tag_name((OPC_TYPES_NS, "Types")) {
         return Err(invalid("invalid OPC Types root"));
     }
     for (path, mime) in [
