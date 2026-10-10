@@ -14,8 +14,7 @@
     "vite": "7.1.9",
     "react": "19.1.1",
     "react-dom": "19.1.1",
-    "maplibre-gl": "5.7.1",
-    "@noble/hashes": "1.8.0"
+    "maplibre-gl": "5.7.1"
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
@@ -57,5 +56,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "@noble/hashes": "1.8.0"
   }
 }
