@@ -485,3 +485,98 @@ mod additional_contract_tests {
         assert!(validate_grid(&grid).unwrap_err().starts_with("INVALID_CRS"));
     }
 }
+
+#[cfg(test)]
+mod manifest_ingress_parity_tests {
+    use super::*;
+
+    fn fixture() -> TerrainSourceManifestV1 {
+        serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/TerrainSourceManifestV1.valid.json"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn altered_version_or_kind_cannot_bypass_digest_validation() {
+        let original = fixture();
+        let mut version = original.clone();
+        version.schema_version = "2.0.0".into();
+        assert_eq!(
+            canonical::manifest_digest(&version).unwrap(),
+            original.manifest_sha256
+        );
+        assert!(validate_manifest(&version).unwrap_err().starts_with("INVALID_SOURCE"));
+        let mut kind = original.clone();
+        kind.kind = "Other".into();
+        assert_eq!(
+            canonical::manifest_digest(&kind).unwrap(),
+            original.manifest_sha256
+        );
+        assert!(validate_manifest(&kind).unwrap_err().starts_with("INVALID_SOURCE"));
+    }
+
+    #[test]
+    fn rehashed_unrecognized_coverage_never_claims_readiness() {
+        let mut forged = fixture();
+        forged.coverage_status = "another-kind-of-coverage".into();
+        forged.manifest_sha256 = canonical::manifest_digest(&forged).unwrap();
+        assert!(validate_manifest(&forged).unwrap_err().starts_with("INVALID_SOURCE"));
+        let mut declared = fixture();
+        declared.coverage_status = "verified-tile-index".into();
+        declared.coverage_index_sha256 = Some("f".repeat(64));
+        declared.manifest_sha256 = canonical::manifest_digest(&declared).unwrap();
+        assert!(validate_manifest(&declared).is_ok());
+        // This returns validation only; existence and Z/X/Y presence require the native registry.
+    }
+
+    #[test]
+    fn required_source_rights_size_and_resolution_fields_fail_closed() {
+        let mut invalid = fixture();
+        invalid.source_name.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.release_id.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.archive_id.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.horizontal_crs.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.vertical_datum_id.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.native_resolution_source.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.license_identifier.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.attribution.clear();
+        assert!(validate_manifest(&invalid).is_err());
+        let mut invalid = fixture();
+        invalid.decoder_version.clear();
+        assert!(validate_manifest(&invalid).is_err());
+
+        for size in [0, 9_007_199_254_740_992, u64::MAX] {
+            let mut invalid = fixture();
+            invalid.source_bytes = size;
+            assert!(validate_manifest(&invalid).is_err(), "size: {size}");
+        }
+        for nominal in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let mut invalid = fixture();
+            invalid.nominal_ground_sample_meters = nominal;
+            assert!(validate_manifest(&invalid).is_err());
+        }
+        for uncertainty in [-1.0, f64::NAN, f64::INFINITY] {
+            let mut invalid = fixture();
+            invalid.uncertainty_meters = Some(uncertainty);
+            assert!(validate_manifest(&invalid).is_err());
+        }
+        let mut invalid = fixture();
+        invalid.source_archive_sha256 = "NOT_A_HASH".into();
+        assert!(validate_manifest(&invalid).is_err());
+    }
+}
