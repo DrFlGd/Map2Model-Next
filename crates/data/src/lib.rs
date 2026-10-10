@@ -506,16 +506,30 @@ impl ImportedSource {
             let p = lat.to_radians();
             ((1. - (p.tan() + 1. / p.cos()).ln() / std::f64::consts::PI) / 2. * n).clamp(0., n)
         };
-        let lower = |f: f64| f.floor().min(n - 1.) as u32;
-        let upper = |f: f64| {
-            if f == f.floor() && f > 0. {
-                (f as u32 - 1).min(n as u32 - 1)
+        // Frozen G1 tile-ownership policy: the geographic rectangle is CLOSED.
+        // Samples exactly on either edge can be owned by either neighboring XYZ
+        // tile in an independent raster sampler. Include both neighbors on
+        // *all four* edges rather than silently dropping east/south tiles.
+        // Decimal-to-Mercator roundtrips can be off by a few ULPs at z22,
+        // so snap only within 1e-9 of an integer tile coordinate.
+        let interval_min = |f: f64| -> u32 {
+            let seam = f.round();
+            if (f - seam).abs() <= 1e-9 && seam > 0. && seam < n {
+                (seam as u32) - 1
             } else {
-                lower(f)
+                f.floor().min(n - 1.) as u32
             }
         };
-        let (x0, x1) = (lower(x(b[0])), upper(x(b[2])));
-        let (y0, y1) = (lower(y(b[3])), upper(y(b[1])));
+        let interval_max = |f: f64| -> u32 {
+            let seam = f.round();
+            if (f - seam).abs() <= 1e-9 {
+                seam.min(n - 1.) as u32
+            } else {
+                f.floor().min(n - 1.) as u32
+            }
+        };
+        let (x0, x1) = (interval_min(x(b[0])), interval_max(x(b[2])));
+        let (y0, y1) = (interval_min(y(b[3])), interval_max(y(b[1])));
         if x1 < x0 || y1 < y0 {
             return Err(err(
                 "INVALID_SELECTION",
