@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "TerrainSourceManifestV1",
+  "sourceName": "synthetic",
+  "releaseId": "synthetic-test-v1",
+  "archiveId": "synthetic-grid-fixture",
+  "localAssetToken": "m2m-asset:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "coverageBbox": [
+    -84.09,
+    39.74,
+    -84.089,
+    39.741
+  ],
+  "horizontalCrs": "EPSG:4326",
+  "verticalDatumId": "SYNTHETIC-RELATIVE-METERS",
+  "nativeGroundSampleMeters": 10,
+  "sourceBytes": 1024,
+  "licenseIdentifier": "CC0-1.0",
+  "attribution": "Artificial elevation samples, original Map2Model Next test fixture",
+  "decoderVersion": "synthetic-decoder/1"
+}

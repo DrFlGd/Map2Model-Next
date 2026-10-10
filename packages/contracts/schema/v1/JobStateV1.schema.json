@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map2model.invalid/contracts/v1/JobStateV1.schema.json",
+  "title": "JobStateV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "correlationId",
+    "phase",
+    "status",
+    "progress01",
+    "reasonCode",
+    "message"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "JobStateV1"
+    },
+    "jobId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "phase": {
+      "enum": [
+        "queued",
+        "import",
+        "decode",
+        "mesh",
+        "export",
+        "verify",
+        "complete"
+      ]
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "progress01": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reasonCode": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "DATA_MISSING",
+            "INVALID_SELECTION",
+            "INVALID_CRS",
+            "UNSUPPORTED_DATUM",
+            "HASH_MISMATCH",
+            "INVALID_SOURCE",
+            "OUT_OF_MEMORY",
+            "NON_MANIFOLD_MESH",
+            "EXPORT_FAILED",
+            "CANCELLED",
+            "UNSUPPORTED_OPERATION",
+            "INTERNAL_ERROR"
+          ]
+        }
+      ]
+    },
+    "message": {
+      "type": "string"
+    }
+  }
+}

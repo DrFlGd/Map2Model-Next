@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "ElevationGridV1",
+  "gridId": "grid-synthetic-001",
+  "selectionId": "sel-synthetic-001",
+  "sourceManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "width": 3,
+  "height": 3,
+  "samplesMeters": [
+    0,
+    1,
+    0,
+    2,
+    3,
+    2,
+    0,
+    1,
+    0
+  ],
+  "validMask": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "minEastMeters": 0,
+  "maxNorthMeters": 20,
+  "dxMeters": 10,
+  "dyMeters": 10,
+  "anchorWgs84": [
+    -84.09,
+    39.741
+  ],
+  "horizontalTransformId": "synthetic-local-metric/v1",
+  "verticalDatumId": "SYNTHETIC-RELATIVE-METERS",
+  "storageConvention": "north-up-f64-row-major",
+  "gridSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

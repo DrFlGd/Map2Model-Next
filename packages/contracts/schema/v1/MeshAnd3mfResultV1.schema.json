@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map2model.invalid/contracts/v1/MeshAnd3mfResultV1.schema.json",
+  "title": "MeshAnd3mfResultV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "geometry",
+    "artifact",
+    "canonicalGeometrySha256",
+    "provenanceSha256",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "MeshAnd3mfResultV1"
+    },
+    "jobId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "units",
+        "vertices",
+        "triangles",
+        "closed",
+        "oriented",
+        "nonManifoldEdges",
+        "degenerateTriangles",
+        "minimumMeasuredThicknessMm"
+      ],
+      "properties": {
+        "units": {
+          "const": "millimeter"
+        },
+        "vertices": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "triangles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "oriented": {
+          "type": "boolean"
+        },
+        "nonManifoldEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "degenerateTriangles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimumMeasuredThicknessMm": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exportToken",
+        "sha256",
+        "sizeBytes",
+        "format",
+        "conformance"
+      ],
+      "properties": {
+        "exportToken": {
+          "type": "string",
+          "pattern": "^m2m-export:[A-Za-z0-9._:-]+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format": {
+          "const": "3mf"
+        },
+        "conformance": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        }
+      }
+    },
+    "canonicalGeometrySha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "provenanceSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

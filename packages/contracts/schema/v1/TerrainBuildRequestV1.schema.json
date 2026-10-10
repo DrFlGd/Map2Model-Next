@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map2model.invalid/contracts/v1/TerrainBuildRequestV1.schema.json",
+  "title": "TerrainBuildRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "correlationId",
+    "selectionId",
+    "gridSha256",
+    "clipRectMeters",
+    "modelWidthMm",
+    "modelHeightMm",
+    "baseThicknessMm",
+    "minimumFeatureThicknessMm",
+    "verticalExaggeration",
+    "elevationZeroMeters",
+    "engineVersion",
+    "exportToken"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "TerrainBuildRequestV1"
+    },
+    "jobId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "selectionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "gridSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "clipRectMeters": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number"
+      }
+    },
+    "modelWidthMm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "modelHeightMm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "baseThicknessMm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "minimumFeatureThicknessMm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "verticalExaggeration": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "elevationZeroMeters": {
+      "type": "number"
+    },
+    "engineVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exportToken": {
+      "type": "string",
+      "pattern": "^m2m-export:[A-Za-z0-9._:-]+$"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "MeshAnd3mfResultV1",
+  "jobId": "job-synthetic-001",
+  "geometry": {
+    "units": "millimeter",
+    "vertices": 18,
+    "triangles": 32,
+    "closed": true,
+    "oriented": true,
+    "nonManifoldEdges": 0,
+    "degenerateTriangles": 0,
+    "minimumMeasuredThicknessMm": 3
+  },
+  "artifact": {
+    "exportToken": "m2m-export:synthetic-001",
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "sizeBytes": 1234,
+    "format": "3mf",
+    "conformance": "passed"
+  },
+  "canonicalGeometrySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "provenanceSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "warnings": []
+}

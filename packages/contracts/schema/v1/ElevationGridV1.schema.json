@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map2model.invalid/contracts/v1/ElevationGridV1.schema.json",
+  "title": "ElevationGridV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "gridId",
+    "selectionId",
+    "sourceManifestSha256",
+    "width",
+    "height",
+    "samplesMeters",
+    "validMask",
+    "minEastMeters",
+    "maxNorthMeters",
+    "dxMeters",
+    "dyMeters",
+    "anchorWgs84",
+    "horizontalTransformId",
+    "verticalDatumId",
+    "storageConvention",
+    "gridSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "ElevationGridV1"
+    },
+    "gridId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "selectionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sourceManifestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 100000
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 100000
+    },
+    "samplesMeters": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "validMask": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "boolean"
+      }
+    },
+    "minEastMeters": {
+      "type": "number"
+    },
+    "maxNorthMeters": {
+      "type": "number"
+    },
+    "dxMeters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "dyMeters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "anchorWgs84": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
+      ],
+      "items": false
+    },
+    "horizontalTransformId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verticalDatumId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "storageConvention": {
+      "const": "north-up-f64-row-major"
+    },
+    "gridSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
