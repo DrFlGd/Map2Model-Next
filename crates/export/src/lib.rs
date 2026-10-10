@@ -2,6 +2,8 @@
 //! This crate does NOT yet create a ZIP/3MF or publish an artifact. A writer
 //! implementation requires lead approval of lib3mf SDK and its packaging.
 
+pub mod package;
+
 use map2model_contracts::canonical::{canonical_mesh_digest, MeshTriangle};
 use map2model_contracts::validation::{validate_build, validate_manifest};
 use map2model_contracts::{ElevationGridV1, TerrainBuildRequestV1, TerrainSourceManifestV1};
