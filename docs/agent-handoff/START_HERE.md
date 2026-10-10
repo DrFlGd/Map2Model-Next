@@ -2,7 +2,7 @@
 
 **Document:** M2M-REQ-001, v1.1, dated 10 October 2026  
 **Scope:** Phase 0 foundation + Phase 1 local-first terrain-to-3MF vertical slice  
-**Status:** G0 approved/merged; A3-01 merged; A1-03, A2-01 and A3-02 in active G1 review. The original kickoff sequence below is historical context, not a fresh hold on implementation.
+**Status:** G0 approved/merged; A3-01 merged; A1-03, A2-01, A2-02 and A3-02 in active G1 review. The original kickoff sequence below is historical context, not a fresh hold on implementation.
 
 ## Current dispatch — October 10, 2026
 
