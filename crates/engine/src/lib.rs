@@ -6,7 +6,9 @@ use std::fmt;
 
 use map2model_contracts::canonical::{canonical_mesh_digest, MeshTriangle};
 use map2model_contracts::validation;
-use map2model_contracts::{ElevationGridV1, GeometryReportV1, MeshValidationV1, TerrainBuildRequestV1};
+use map2model_contracts::{
+    ElevationGridV1, GeometryReportV1, MeshValidationV1, TerrainBuildRequestV1,
+};
 
 const MAX_MESH_NODES: usize = 100_000;
 const EPS_MM: f64 = 1e-9;
@@ -79,9 +81,7 @@ pub struct BuildOutput {
 
 fn surface_faces(columns: usize, rows: usize) -> Vec<[usize; 3]> {
     let top_count = columns * rows;
-    let mut faces = Vec::with_capacity(
-        4 * (columns - 1) * (rows - 1) + 4 * (columns + rows - 2),
-    );
+    let mut faces = Vec::with_capacity(4 * (columns - 1) * (rows - 1) + 4 * (columns + rows - 2));
     for row in 0..rows - 1 {
         for col in 0..columns - 1 {
             let nw = row * columns + col;
@@ -147,10 +147,16 @@ pub fn inspect_mesh(mesh: &TerrainMesh) -> Result<GeometryReportV1, MeshError> {
         .checked_mul(rows)
         .ok_or_else(|| MeshError::new("OUT_OF_MEMORY", "mesh node-count overflow"))?;
     if columns < 2 || rows < 2 || node_count > MAX_MESH_NODES {
-        return Err(MeshError::new("OUT_OF_MEMORY", "mesh dimensions exceed G1 budget"));
+        return Err(MeshError::new(
+            "OUT_OF_MEMORY",
+            "mesh dimensions exceed G1 budget",
+        ));
     }
     if mesh.vertices_mm.len() != 2 * node_count {
-        return Err(MeshError::new("INVALID_GEOMETRY", "top/bottom node pairing is incomplete"));
+        return Err(MeshError::new(
+            "INVALID_GEOMETRY",
+            "top/bottom node pairing is incomplete",
+        ));
     }
     for (index, vertex) in mesh.vertices_mm.iter().enumerate() {
         if !vertex.iter().all(|v| v.is_finite()) {
@@ -168,10 +174,11 @@ pub fn inspect_mesh(mesh: &TerrainMesh) -> Result<GeometryReportV1, MeshError> {
                 || bottom[2].abs() > EPS_MM
                 || top[2] <= EPS_MM
             {
-                return Err(
-                    MeshError::new("INVALID_GEOMETRY", "bottom must be flat and strictly below top")
-                        .at_sample(index),
-                );
+                return Err(MeshError::new(
+                    "INVALID_GEOMETRY",
+                    "bottom must be flat and strictly below top",
+                )
+                .at_sample(index));
             }
             // Each row has the same X coordinates; each column has the same Y.
             if (top[0] - mesh.vertices_mm[col][0]).abs() > EPS_MM
@@ -179,24 +186,29 @@ pub fn inspect_mesh(mesh: &TerrainMesh) -> Result<GeometryReportV1, MeshError> {
                 || (col > 0 && top[0] - mesh.vertices_mm[index - 1][0] <= EPS_MM)
                 || (row > 0 && mesh.vertices_mm[index - columns][1] - top[1] <= EPS_MM)
             {
-                return Err(
-                    MeshError::new("INVALID_GEOMETRY", "non-monotonic or folded XY heightfield")
-                        .at_sample(index),
-                );
+                return Err(MeshError::new(
+                    "INVALID_GEOMETRY",
+                    "non-monotonic or folded XY heightfield",
+                )
+                .at_sample(index));
             }
             min_thickness = min_thickness.min(top[2]);
         }
     }
     let expected = surface_faces(columns, rows);
     if mesh.triangles.len() != expected.len() {
-        return Err(MeshError::new("NON_MANIFOLD_MESH", "missing or extra terrain faces"));
+        return Err(MeshError::new(
+            "NON_MANIFOLD_MESH",
+            "missing or extra terrain faces",
+        ));
     }
     for (index, (actual, reference)) in mesh.triangles.iter().zip(expected.iter()).enumerate() {
         if actual != reference {
-            return Err(
-                MeshError::new("INVALID_GEOMETRY", "terrain face indexing/winding differs")
-                    .at_triangle(index),
-            );
+            return Err(MeshError::new(
+                "INVALID_GEOMETRY",
+                "terrain face indexing/winding differs",
+            )
+            .at_triangle(index));
         }
     }
 
@@ -205,23 +217,29 @@ pub fn inspect_mesh(mesh: &TerrainMesh) -> Result<GeometryReportV1, MeshError> {
     let mut used = HashSet::new();
     let mut signed_six_volume = 0.0;
     for (index, [a, b, c]) in mesh.triangles.iter().copied().enumerate() {
-        if a == b || a == c || b == c || c >= mesh.vertices_mm.len()
-            || a >= mesh.vertices_mm.len() || b >= mesh.vertices_mm.len()
+        if a == b
+            || a == c
+            || b == c
+            || c >= mesh.vertices_mm.len()
+            || a >= mesh.vertices_mm.len()
+            || b >= mesh.vertices_mm.len()
         {
-            return Err(
-                MeshError::new("INVALID_GEOMETRY", "triangle has invalid/repeated vertices")
-                    .at_triangle(index),
-            );
+            return Err(MeshError::new(
+                "INVALID_GEOMETRY",
+                "triangle has invalid/repeated vertices",
+            )
+            .at_triangle(index));
         }
         let va = mesh.vertices_mm[a];
         let vb = mesh.vertices_mm[b];
         let vc = mesh.vertices_mm[c];
         let n = cross(subtract(vb, va), subtract(vc, va));
         if !dot(n, n).is_finite() || dot(n, n) <= MIN_CROSS_SQUARED {
-            return Err(
-                MeshError::new("INVALID_GEOMETRY", "degenerate or non-finite triangle area")
-                    .at_triangle(index),
-            );
+            return Err(MeshError::new(
+                "INVALID_GEOMETRY",
+                "degenerate or non-finite triangle area",
+            )
+            .at_triangle(index));
         }
         signed_six_volume += dot(va, cross(vb, vc));
         used.extend([a, b, c]);
@@ -233,16 +251,24 @@ pub fn inspect_mesh(mesh: &TerrainMesh) -> Result<GeometryReportV1, MeshError> {
         }
     }
     if used.len() != mesh.vertices_mm.len()
-        || edges.values().any(|(count, direction)| *count != 2 || *direction != 0)
+        || edges
+            .values()
+            .any(|(count, direction)| *count != 2 || *direction != 0)
     {
-        return Err(MeshError::new("NON_MANIFOLD_MESH", "edge incidence or winding is invalid"));
+        return Err(MeshError::new(
+            "NON_MANIFOLD_MESH",
+            "edge incidence or winding is invalid",
+        ));
     }
     // All top nodes are connected by the rectangular triangulation, and each
     // bottom node joins the same connected shell via sidewalls.
     let component_count = 1;
     let volume = signed_six_volume / 6.0;
     if !volume.is_finite() || volume <= 0.0 {
-        return Err(MeshError::new("INVALID_GEOMETRY", "non-positive oriented volume"));
+        return Err(MeshError::new(
+            "INVALID_GEOMETRY",
+            "non-positive oriented volume",
+        ));
     }
     let mut bounds = [
         f64::INFINITY,
@@ -296,21 +322,32 @@ pub fn build_mesh(
 ) -> Result<BuildOutput, MeshError> {
     validation::validate_build(request, grid).map_err(MeshError::from_contract)?;
     if request.schema_version != "1.0.0" || request.kind != "TerrainBuildRequestV1" {
-        return Err(MeshError::new("INVALID_REQUEST", "unsupported build request version/kind"));
+        return Err(MeshError::new(
+            "INVALID_REQUEST",
+            "unsupported build request version/kind",
+        ));
     }
     let [west, south, east, north] = request.clip_rect_meters;
     let scale = request.model_width_mm / (east - west);
     if !scale.is_finite() || scale <= 0.0 {
-        return Err(MeshError::new("INVALID_DIMENSIONS", "invalid geographic print scale"));
+        return Err(MeshError::new(
+            "INVALID_DIMENSIONS",
+            "invalid geographic print scale",
+        ));
     }
     let col_start = ((west - grid.min_east_meters) / grid.dx_meters).round() as usize;
     let col_end = ((east - grid.min_east_meters) / grid.dx_meters).round() as usize;
     let row_start = ((grid.max_north_meters - north) / grid.dy_meters).round() as usize;
     let row_end = ((grid.max_north_meters - south) / grid.dy_meters).round() as usize;
-    if col_end >= grid.width || row_end >= grid.height || col_end <= col_start
+    if col_end >= grid.width
+        || row_end >= grid.height
+        || col_end <= col_start
         || row_end <= row_start
     {
-        return Err(MeshError::new("INVALID_DIMENSIONS", "clip node indices invalid"));
+        return Err(MeshError::new(
+            "INVALID_DIMENSIONS",
+            "clip node indices invalid",
+        ));
     }
     let columns = col_end - col_start + 1;
     let rows = row_end - row_start + 1;
@@ -318,11 +355,15 @@ pub fn build_mesh(
         .checked_mul(rows)
         .ok_or_else(|| MeshError::new("OUT_OF_MEMORY", "mesh node-count overflow"))?;
     if count > MAX_MESH_NODES {
-        return Err(MeshError::new("OUT_OF_MEMORY", "G1 engine limit: 100000 clipped nodes"));
+        return Err(MeshError::new(
+            "OUT_OF_MEMORY",
+            "G1 engine limit: 100000 clipped nodes",
+        ));
     }
-    let elevations = grid.samples_meters.as_ref().ok_or_else(|| {
-        MeshError::new("DATA_MISSING", "the grid is not decoded and verified")
-    })?;
+    let elevations = grid
+        .samples_meters
+        .as_ref()
+        .ok_or_else(|| MeshError::new("DATA_MISSING", "the grid is not decoded and verified"))?;
     let mut vertices = Vec::with_capacity(2 * count);
     for row in 0..rows {
         for col in 0..columns {
@@ -335,24 +376,28 @@ pub fn build_mesh(
             })?;
             let local_east = grid.min_east_meters + source_col as f64 * grid.dx_meters;
             let local_north = grid.max_north_meters - source_row as f64 * grid.dy_meters;
-            let x = if col == 0 { 0.0 } else if col + 1 == columns {
+            let x = if col == 0 {
+                0.0
+            } else if col + 1 == columns {
                 request.model_width_mm
             } else {
                 (local_east - west) * scale
             };
-            let y = if row == 0 { request.model_height_mm } else if row + 1 == rows {
+            let y = if row == 0 {
+                request.model_height_mm
+            } else if row + 1 == rows {
                 0.0
             } else {
                 (local_north - south) * scale
             };
             let z = request.base_thickness_mm
-                + (height - request.elevation_zero_meters) * scale
-                    * request.vertical_exaggeration;
+                + (height - request.elevation_zero_meters) * scale * request.vertical_exaggeration;
             if !z.is_finite() || z <= EPS_MM {
-                return Err(
-                    MeshError::new("INVALID_DIMENSIONS", "terrain Z is not finite/positive")
-                        .at_sample(sample_index),
-                );
+                return Err(MeshError::new(
+                    "INVALID_DIMENSIONS",
+                    "terrain Z is not finite/positive",
+                )
+                .at_sample(sample_index));
             }
             vertices.push([x, y, z]);
         }
@@ -369,20 +414,32 @@ pub fn build_mesh(
     };
     let geometry = inspect_mesh(&mesh)?;
     if geometry.minimum_measured_thickness_mm + 0.05
-        < request.base_thickness_mm.max(request.minimum_feature_thickness_mm)
+        < request
+            .base_thickness_mm
+            .max(request.minimum_feature_thickness_mm)
     {
-        return Err(MeshError::new("INVALID_GEOMETRY", "terrain minimum thickness below print constraint"));
+        return Err(MeshError::new(
+            "INVALID_GEOMETRY",
+            "terrain minimum thickness below print constraint",
+        ));
     }
     if (geometry.measured_aabb_mm[3] - request.model_width_mm).abs() > 0.05
         || (geometry.measured_aabb_mm[4] - request.model_height_mm).abs() > 0.05
         || geometry.measured_aabb_mm[2].abs() > 0.05
     {
-        return Err(MeshError::new("INVALID_DIMENSIONS", "measured mesh dimensions differ from request"));
+        return Err(MeshError::new(
+            "INVALID_DIMENSIONS",
+            "measured mesh dimensions differ from request",
+        ));
     }
-    let triangles: Vec<MeshTriangle> = mesh.triangles.iter().map(|indices| MeshTriangle {
-        part_id: "terrain".into(),
-        indices: *indices,
-    }).collect();
+    let triangles: Vec<MeshTriangle> = mesh
+        .triangles
+        .iter()
+        .map(|indices| MeshTriangle {
+            part_id: "terrain".into(),
+            indices: *indices,
+        })
+        .collect();
     let digest = canonical_mesh_digest(&mesh.vertices_mm, &triangles)
         .map_err(|reason| MeshError::new("INVALID_GEOMETRY", reason))?;
     Ok(BuildOutput {
