@@ -1,6 +1,8 @@
 //! Offline, bounded PMTiles v3 importer for Terrarium WebP archives.
 //! Data never leaves the local native engine. All source policy is caller-supplied;
 //! no zoom, header bbox, or metadata string is substituted for proven rights/datum.
+pub mod terrarium;
+
 use flate2::read::GzDecoder;
 use map2model_contracts::{canonical, validation, SelectionV1, TerrainSourceManifestV1};
 use sha2::{Digest, Sha256};
@@ -245,7 +247,7 @@ fn parse_directory(bytes: &[u8]) -> Result<Vec<DirEntry>, String> {
     }
     Ok(entries)
 }
-fn tile_id(z: u8, x: u32, y: u32) -> Result<u64, String> {
+pub(crate) fn tile_id(z: u8, x: u32, y: u32) -> Result<u64, String> {
     if z > MAX_ZOOM || x >= (1_u32 << z) || y >= (1_u32 << z) {
         return Err(err("INVALID_SELECTION", "invalid Z/X/Y coordinate"));
     }
