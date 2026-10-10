@@ -63,6 +63,7 @@
         {
           "enum": [
             "DATA_MISSING",
+            "INVALID_REQUEST",
             "INVALID_SELECTION",
             "INVALID_CRS",
             "UNSUPPORTED_DATUM",
