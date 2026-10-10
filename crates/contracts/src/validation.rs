@@ -505,14 +505,18 @@ mod manifest_ingress_parity_tests {
             canonical::manifest_digest(&version).unwrap(),
             original.manifest_sha256
         );
-        assert!(validate_manifest(&version).unwrap_err().starts_with("INVALID_SOURCE"));
+        assert!(validate_manifest(&version)
+            .unwrap_err()
+            .starts_with("INVALID_SOURCE"));
         let mut kind = original.clone();
         kind.kind = "Other".into();
         assert_eq!(
             canonical::manifest_digest(&kind).unwrap(),
             original.manifest_sha256
         );
-        assert!(validate_manifest(&kind).unwrap_err().starts_with("INVALID_SOURCE"));
+        assert!(validate_manifest(&kind)
+            .unwrap_err()
+            .starts_with("INVALID_SOURCE"));
     }
 
     #[test]
@@ -520,7 +524,9 @@ mod manifest_ingress_parity_tests {
         let mut forged = fixture();
         forged.coverage_status = "another-kind-of-coverage".into();
         forged.manifest_sha256 = canonical::manifest_digest(&forged).unwrap();
-        assert!(validate_manifest(&forged).unwrap_err().starts_with("INVALID_SOURCE"));
+        assert!(validate_manifest(&forged)
+            .unwrap_err()
+            .starts_with("INVALID_SOURCE"));
         let mut declared = fixture();
         declared.coverage_status = "verified-tile-index".into();
         declared.coverage_index_sha256 = Some("f".repeat(64));
