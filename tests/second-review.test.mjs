@@ -76,3 +76,43 @@ test('local 2-km WGS84 transform checked against independent WGS84 geodesic vect
  const overSize={...selection,bbox:[0,0,0.04,0.01]};
  assert.equal(validateSelection(overSize).code,'INVALID_SELECTION');
 });
+
+test('C-02 manifest ingress rejects foreign version and kind despite unchanged canonical digest',()=>{
+ const original=manifest.manifestSha256;
+ for(const mutation of [{schemaVersion:'2.0.0'},{kind:'Other'}]){
+   const invalid={...manifest,...mutation};
+   assert.equal(manifestDigest(invalid),original,'wire discriminator is intentionally excluded from digest');
+   assert.equal(validateManifest(invalid).code,'INVALID_SOURCE');
+ }
+});
+test('C-02 runtime validators reject a forged but rehashed coverage declaration',()=>{
+ const other={...manifest,coverageStatus:'not-a-supported-coverage-policy'};
+ other.manifestSha256=manifestDigest(other);
+ assert.equal(validateManifest(other).code,'INVALID_SOURCE');
+ const declared={...manifest,coverageStatus:'verified-tile-index',coverageIndexSha256:'f'.repeat(64)};
+ declared.manifestSha256=manifestDigest(declared);
+ const checked=validateManifest(declared);
+ assert.equal(checked.ok,true);
+ assert.equal(checked.indexDeclared,true);
+ assert.equal(Object.hasOwn(checked,'coverageReady'),false);
+});
+test('C-02 manifest requires rights, provenance and positive bounded finite metadata',()=>{
+ const changes=[
+  {sourceName:''},{releaseId:''},{archiveId:''},{horizontalCrs:''},
+  {verticalDatumId:''},{nativeResolutionSource:''},{licenseIdentifier:''},
+  {attribution:''},{decoderVersion:''},
+  {sourceBytes:0},{sourceBytes:-1},{sourceBytes:1.25},
+  {sourceBytes:Number.MAX_SAFE_INTEGER+1},{sourceBytes:Infinity},
+  {nominalGroundSampleMeters:0},{nominalGroundSampleMeters:-1},
+  {nominalGroundSampleMeters:NaN},{nominalGroundSampleMeters:Infinity},
+  {uncertaintyMeters:-1},{uncertaintyMeters:Infinity},
+  {sourceArchiveSha256:'NOT_A_HASH'},
+  {coverageIndexSha256:'f'.repeat(64)}
+ ];
+ for(const mutation of changes){
+  const invalid={...manifest,...mutation};
+  const check=validateManifest(invalid);
+  assert.equal(check.ok,false,JSON.stringify(mutation));
+  assert.match(check.code,/INVALID_SOURCE|HASH_MISMATCH/,JSON.stringify(mutation));
+ }
+});
