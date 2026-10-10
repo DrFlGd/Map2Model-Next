@@ -1,7 +1,9 @@
 //! Deterministic 3MF Core 1.4.0 single-mesh OPC writer with independent
 //! ZIP/XML readback. Slicer acceptance and the official Core test suite
 //! remain separate external release gates.
-use crate::{prepare_export, ExportError, PreparedExport, CORE_VERSION, MODEL_PART, PROVENANCE_PART};
+use crate::{
+    prepare_export, ExportError, PreparedExport, CORE_VERSION, MODEL_PART, PROVENANCE_PART,
+};
 use map2model_contracts::canonical::{canonical_mesh_digest, MeshTriangle};
 use map2model_contracts::{ElevationGridV1, TerrainBuildRequestV1, TerrainSourceManifestV1};
 use map2model_mesh::{BuildOutput, TerrainMesh};
@@ -16,7 +18,8 @@ const CORE_NS: &str = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02
 const OPC_RELS_NS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 const OPC_TYPES_NS: &str = "http://schemas.openxmlformats.org/package/2006/content-types";
 const START_REL: &str = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel";
-const PRESERVE_REL: &str = "http://schemas.openxmlformats.org/package/2006/relationships/mustpreserve";
+const PRESERVE_REL: &str =
+    "http://schemas.openxmlformats.org/package/2006/relationships/mustpreserve";
 const MODEL_TYPE: &str = "application/vnd.ms-package.3dmanufacturing-3dmodel+xml";
 const MAX_PART_SIZE: usize = 64 * 1024 * 1024;
 const MAX_PACKAGE_SIZE: usize = 80 * 1024 * 1024;
@@ -86,8 +89,14 @@ fn metadata(xml: &mut String, name: &str, value: &str) {
     xml.push_str(&xml_escape(value));
     xml.push_str("</metadata>");
 }
-fn model_xml(mesh: &TerrainMesh, prepared: &PreparedExport, source: &TerrainSourceManifestV1, request: &TerrainBuildRequestV1) -> Result<String, ExportError> {
-    let mut xml = String::with_capacity(mesh.vertices_mm.len() * 105 + mesh.triangles.len() * 65 + 1400);
+fn model_xml(
+    mesh: &TerrainMesh,
+    prepared: &PreparedExport,
+    source: &TerrainSourceManifestV1,
+    request: &TerrainBuildRequestV1,
+) -> Result<String, ExportError> {
+    let mut xml =
+        String::with_capacity(mesh.vertices_mm.len() * 105 + mesh.triangles.len() * 65 + 1400);
     xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
     xml.push_str("<model xmlns=\"");
     xml.push_str(CORE_NS);
@@ -96,11 +105,18 @@ fn model_xml(mesh: &TerrainMesh, prepared: &PreparedExport, source: &TerrainSour
     metadata(&mut xml, "SourceName", &source.source_name);
     metadata(&mut xml, "SourceAttribution", &source.attribution);
     metadata(&mut xml, "SourceLicense", &source.license_identifier);
-    metadata(&mut xml, "CanonicalGeometrySHA256", &prepared.canonical_geometry_sha256);
+    metadata(
+        &mut xml,
+        "CanonicalGeometrySHA256",
+        &prepared.canonical_geometry_sha256,
+    );
     metadata(&mut xml, "ProvenanceSHA256", &prepared.provenance_sha256);
     xml.push_str("<resources><object id=\"1\" type=\"model\"><mesh><vertices>");
     for vertex in &mesh.vertices_mm {
-        if !vertex.iter().all(|v| v.is_finite() && v.abs() <= 1_000_000.0) {
+        if !vertex
+            .iter()
+            .all(|v| v.is_finite() && v.abs() <= 1_000_000.0)
+        {
             return Err(invalid("nonfinite or unsupported 3MF coordinate"));
         }
         xml.push_str(&format!(
@@ -112,19 +128,30 @@ fn model_xml(mesh: &TerrainMesh, prepared: &PreparedExport, source: &TerrainSour
     for [a, b, c] in &mesh.triangles {
         xml.push_str(&format!("<triangle v1=\"{a}\" v2=\"{b}\" v3=\"{c}\"/>"));
     }
-    xml.push_str("</triangles></mesh></object></resources><build><item objectid=\"1\"/></build></model>");
+    xml.push_str(
+        "</triangles></mesh></object></resources><build><item objectid=\"1\"/></build></model>",
+    );
     if xml.len() > MAX_PART_SIZE {
-        return Err(ExportError::new("OUT_OF_MEMORY", "3MF XML model exceeds 64MiB"));
+        return Err(ExportError::new(
+            "OUT_OF_MEMORY",
+            "3MF XML model exceeds 64MiB",
+        ));
     }
     Ok(xml)
 }
 
-fn zip_add(zip: &mut ZipWriter<Cursor<Vec<u8>>>, name: &str, content: &[u8]) -> Result<(), ExportError> {
+fn zip_add(
+    zip: &mut ZipWriter<Cursor<Vec<u8>>>,
+    name: &str,
+    content: &[u8],
+) -> Result<(), ExportError> {
     let opts = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
         .last_modified_time(zip::DateTime::default());
-    zip.start_file(name, opts).map_err(|e| invalid(format!("zip part {name}: {e}")))?;
-    zip.write_all(content).map_err(|e| invalid(format!("zip write {name}: {e}")))
+    zip.start_file(name, opts)
+        .map_err(|e| invalid(format!("zip part {name}: {e}")))?;
+    zip.write_all(content)
+        .map_err(|e| invalid(format!("zip write {name}: {e}")))
 }
 
 /// Build a real in-memory .3mf package, then parse the produced ZIP and mesh
@@ -141,10 +168,20 @@ pub fn export_3mf(
     zip_add(&mut zip, "[Content_Types].xml", CONTENT_TYPES.as_bytes())?;
     zip_add(&mut zip, "_rels/.rels", RELATIONSHIPS.as_bytes())?;
     zip_add(&mut zip, "3D/3dmodel.model", xml.as_bytes())?;
-    zip_add(&mut zip, "Metadata/map2model.provenance.json", &prepared.provenance_bytes)?;
-    let bytes = zip.finish().map_err(|e| invalid(format!("ZIP finish: {e}")))?.into_inner();
+    zip_add(
+        &mut zip,
+        "Metadata/map2model.provenance.json",
+        &prepared.provenance_bytes,
+    )?;
+    let bytes = zip
+        .finish()
+        .map_err(|e| invalid(format!("ZIP finish: {e}")))?
+        .into_inner();
     if bytes.len() > MAX_PACKAGE_SIZE {
-        return Err(ExportError::new("OUT_OF_MEMORY", "3MF archive exceeds 80MiB"));
+        return Err(ExportError::new(
+            "OUT_OF_MEMORY",
+            "3MF archive exceeds 80MiB",
+        ));
     }
     let inspected = inspect_3mf(&bytes, result, &prepared)?;
     Ok(Exported3mf {
@@ -159,13 +196,19 @@ pub fn export_3mf(
 }
 
 fn read_part(zip: &mut ZipArchive<Cursor<&[u8]>>, name: &str) -> Result<Vec<u8>, ExportError> {
-    let mut entry = zip.by_name(name).map_err(|_| invalid(format!("3MF missing required part {name}")))?;
+    let mut entry = zip
+        .by_name(name)
+        .map_err(|_| invalid(format!("3MF missing required part {name}")))?;
     let n = usize::try_from(entry.size()).map_err(|_| invalid("oversize 3MF part"))?;
     if n > MAX_PART_SIZE || entry.compression() != CompressionMethod::Stored {
-        return Err(invalid(format!("unsupported compression or oversized 3MF part {name}")));
+        return Err(invalid(format!(
+            "unsupported compression or oversized 3MF part {name}"
+        )));
     }
     let mut content = Vec::with_capacity(n);
-    entry.read_to_end(&mut content).map_err(|e| invalid(format!("ZIP read: {e}")))?;
+    entry
+        .read_to_end(&mut content)
+        .map_err(|e| invalid(format!("ZIP read: {e}")))?;
     if content.len() != n {
         return Err(invalid("3MF part size mismatch"));
     }
@@ -188,12 +231,19 @@ fn exactly_one<'a, 'input>(
     }
     Ok(node)
 }
-fn aabb(points: &[[f64;3]]) -> [f64;6] {
-    let mut bb = [f64::INFINITY, f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+fn aabb(points: &[[f64; 3]]) -> [f64; 6] {
+    let mut bb = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
     for p in points {
         for axis in 0..3 {
             bb[axis] = bb[axis].min(p[axis]);
-            bb[axis+3] = bb[axis+3].max(p[axis]);
+            bb[axis + 3] = bb[axis + 3].max(p[axis]);
         }
     }
     bb
@@ -211,13 +261,21 @@ pub fn inspect_3mf(
     if bytes.len() < 100 || bytes.len() > MAX_PACKAGE_SIZE {
         return Err(invalid("3MF ZIP byte length invalid"));
     }
-    let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| invalid(format!("3MF ZIP invalid: {e}")))?;
+    let mut zip = ZipArchive::new(Cursor::new(bytes))
+        .map_err(|e| invalid(format!("3MF ZIP invalid: {e}")))?;
     if zip.len() != 4 {
         return Err(invalid("3MF requires exactly four declared OPC parts"));
     }
-    let expected = ["[Content_Types].xml", "_rels/.rels", "3D/3dmodel.model", "Metadata/map2model.provenance.json"];
+    let expected = [
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "3D/3dmodel.model",
+        "Metadata/map2model.provenance.json",
+    ];
     for n in 0..zip.len() {
-        let f = zip.by_index(n).map_err(|e| invalid(format!("3MF bad ZIP index: {e}")))?;
+        let f = zip
+            .by_index(n)
+            .map_err(|e| invalid(format!("3MF bad ZIP index: {e}")))?;
         if !expected.contains(&f.name()) {
             return Err(invalid("3MF unexpected/duplicate ZIP part"));
         }
@@ -227,15 +285,22 @@ pub fn inspect_3mf(
     let model = read_part(&mut zip, expected[2])?;
     let provenance = read_part(&mut zip, expected[3])?;
     if provenance != prepared.provenance_bytes {
-        return Err(ExportError::new("HASH_MISMATCH", "3MF embedded provenance differs"));
+        return Err(ExportError::new(
+            "HASH_MISMATCH",
+            "3MF embedded provenance differs",
+        ));
     }
     let provenance_sha256 = format!("{:x}", Sha256::digest(&provenance));
     if provenance_sha256 != prepared.provenance_sha256 {
-        return Err(ExportError::new("HASH_MISMATCH", "3MF provenance digest mismatch"));
+        return Err(ExportError::new(
+            "HASH_MISMATCH",
+            "3MF provenance digest mismatch",
+        ));
     }
     serde_json::from_slice::<serde_json::Value>(&provenance)
         .map_err(|e| invalid(format!("invalid provenance JSON: {e}")))?;
-    let content_xml = std::str::from_utf8(&content).map_err(|_| invalid("non-UTF8 OPC Content Types"))?;
+    let content_xml =
+        std::str::from_utf8(&content).map_err(|_| invalid("non-UTF8 OPC Content Types"))?;
     let types = parse_xml(content_xml)?;
     if types.root_element().tag_name() != (OPC_TYPES_NS, "Types") {
         return Err(invalid("invalid OPC Types root"));
@@ -253,16 +318,28 @@ pub fn inspect_3mf(
             return Err(invalid(format!("3MF missing OPC Content Type {path}")));
         }
     }
-    let rel_xml = std::str::from_utf8(&relationships).map_err(|_| invalid("non-UTF8 OPC relationships"))?;
+    let rel_xml =
+        std::str::from_utf8(&relationships).map_err(|_| invalid("non-UTF8 OPC relationships"))?;
     let rels = parse_xml(rel_xml)?;
-    if !rels.root_element().has_tag_name((OPC_RELS_NS,"Relationships")) {
+    if !rels
+        .root_element()
+        .has_tag_name((OPC_RELS_NS, "Relationships"))
+    {
         return Err(invalid("3MF bad OPC relationships root"));
     }
-    for (target, kind) in [(MODEL_PART,START_REL), (PROVENANCE_PART,PRESERVE_REL)] {
-        let count = rels.descendants().filter(|n| n.has_tag_name((OPC_RELS_NS,"Relationship"))
-            && n.attribute("Target") == Some(target) && n.attribute("Type") == Some(kind)).count();
+    for (target, kind) in [(MODEL_PART, START_REL), (PROVENANCE_PART, PRESERVE_REL)] {
+        let count = rels
+            .descendants()
+            .filter(|n| {
+                n.has_tag_name((OPC_RELS_NS, "Relationship"))
+                    && n.attribute("Target") == Some(target)
+                    && n.attribute("Type") == Some(kind)
+            })
+            .count();
         if count != 1 {
-            return Err(invalid(format!("missing/multiple OPC relationship for {target}")));
+            return Err(invalid(format!(
+                "missing/multiple OPC relationship for {target}"
+            )));
         }
     }
     let model_xml = std::str::from_utf8(&model).map_err(|_| invalid("non-UTF8 3MF model"))?;
@@ -273,31 +350,39 @@ pub fn inspect_3mf(
     }
     let mesh_node = exactly_one(&doc, CORE_NS, "mesh")?;
     let object = exactly_one(&doc, CORE_NS, "object")?;
-    if object.attribute("id") != Some("1") || object.attribute("type") != Some("model")
+    if object.attribute("id") != Some("1")
+        || object.attribute("type") != Some("model")
         || !mesh_node.ancestors().any(|parent| parent == object)
     {
         return Err(invalid("3MF build resource object is invalid"));
     }
     let build = exactly_one(&doc, CORE_NS, "build")?;
-    let items = build.children().filter(|n| n.has_tag_name((CORE_NS, "item"))).collect::<Vec<_>>();
-    if items.len() != 1 || items[0].attribute("objectid") != Some("1")
-        || items[0].attribute("transform").is_some() {
+    let items = build
+        .children()
+        .filter(|n| n.has_tag_name((CORE_NS, "item")))
+        .collect::<Vec<_>>();
+    if items.len() != 1
+        || items[0].attribute("objectid") != Some("1")
+        || items[0].attribute("transform").is_some()
+    {
         return Err(invalid("3MF build item/transform is invalid"));
     }
     let vertex_root = exactly_one(&doc, CORE_NS, "vertices")?;
     let triangle_root = exactly_one(&doc, CORE_NS, "triangles")?;
     if !vertex_root.ancestors().any(|parent| parent == mesh_node)
-        || !triangle_root.ancestors().any(|parent| parent == mesh_node) {
+        || !triangle_root.ancestors().any(|parent| parent == mesh_node)
+    {
         return Err(invalid("3MF mesh vertices/triangles not attached to mesh"));
     }
     let mut vertices = Vec::new();
     for n in vertex_root.children().filter(|n| n.is_element()) {
-        if !n.has_tag_name((CORE_NS,"vertex")) {
+        if !n.has_tag_name((CORE_NS, "vertex")) {
             return Err(invalid("unexpected XML element in 3MF vertices"));
         }
-        let mut point = [0.0;3];
-        for (i, key) in ["x","y","z"].iter().enumerate() {
-            point[i] = required_attr(n, key)?.parse::<f64>()
+        let mut point = [0.0; 3];
+        for (i, key) in ["x", "y", "z"].iter().enumerate() {
+            point[i] = required_attr(n, key)?
+                .parse::<f64>()
                 .map_err(|_| invalid("3MF malformed vertex coordinate"))?;
             if !point[i].is_finite() {
                 return Err(invalid("3MF nonfinite vertex coordinate"));
@@ -305,32 +390,49 @@ pub fn inspect_3mf(
         }
         vertices.push(point);
         if vertices.len() > 200_000 {
-            return Err(ExportError::new("OUT_OF_MEMORY", "3MF vertex limit exceeded"));
+            return Err(ExportError::new(
+                "OUT_OF_MEMORY",
+                "3MF vertex limit exceeded",
+            ));
         }
     }
     let mut triangles = Vec::new();
     for n in triangle_root.children().filter(|n| n.is_element()) {
-        if !n.has_tag_name((CORE_NS,"triangle")) {
+        if !n.has_tag_name((CORE_NS, "triangle")) {
             return Err(invalid("unexpected XML element in 3MF triangles"));
         }
-        let mut indices = [0usize;3];
-        for (i, key) in ["v1","v2","v3"].iter().enumerate() {
-            indices[i] = required_attr(n, key)?.parse::<usize>()
+        let mut indices = [0usize; 3];
+        for (i, key) in ["v1", "v2", "v3"].iter().enumerate() {
+            indices[i] = required_attr(n, key)?
+                .parse::<usize>()
                 .map_err(|_| invalid("3MF malformed triangle index"))?;
         }
         if indices.iter().any(|i| *i >= vertices.len())
-            || indices[0]==indices[1] || indices[1]==indices[2] || indices[0]==indices[2] {
+            || indices[0] == indices[1]
+            || indices[1] == indices[2]
+            || indices[0] == indices[2]
+        {
             return Err(invalid("3MF invalid/repeated vertex indices"));
         }
         triangles.push(indices);
         if triangles.len() > 400_000 {
-            return Err(ExportError::new("OUT_OF_MEMORY", "3MF triangle limit exceeded"));
+            return Err(ExportError::new(
+                "OUT_OF_MEMORY",
+                "3MF triangle limit exceeded",
+            ));
         }
     }
     let bbox = aabb(&vertices);
-    if vertices.len() != original.geometry.vertices || triangles.len() != original.geometry.triangles
-        || bbox.iter().zip(original.geometry.measured_aabb_mm.iter()).any(|(a,b)| (a-b).abs() > 0.00001) {
-        return Err(invalid("3MF readback mesh dimensions/count differ from input"));
+    if vertices.len() != original.geometry.vertices
+        || triangles.len() != original.geometry.triangles
+        || bbox
+            .iter()
+            .zip(original.geometry.measured_aabb_mm.iter())
+            .any(|(a, b)| (a - b).abs() > 0.00001)
+    {
+        return Err(invalid(
+            "3MF readback mesh dimensions/count differ from input",
+        ));
     }
     let restored = TerrainMesh {
         vertices_mm: vertices,
@@ -339,15 +441,23 @@ pub fn inspect_3mf(
         rows: original.mesh.rows,
     };
     map2model_mesh::inspect_mesh(&restored)?;
-    let canonical_tris = restored.triangles.iter().map(|t| MeshTriangle {
-        part_id: "terrain".to_owned(),
-        indices: *t,
-    }).collect::<Vec<_>>();
+    let canonical_tris = restored
+        .triangles
+        .iter()
+        .map(|t| MeshTriangle {
+            part_id: "terrain".to_owned(),
+            indices: *t,
+        })
+        .collect::<Vec<_>>();
     let geometry_sha = canonical_mesh_digest(&restored.vertices_mm, &canonical_tris)
         .map_err(|e| invalid(format!("3MF mesh SHA encoding: {e}")))?;
     if geometry_sha != prepared.canonical_geometry_sha256
-        || geometry_sha != original.canonical_geometry_sha256 {
-        return Err(ExportError::new("HASH_MISMATCH", "3MF parsed geometry digest differs"));
+        || geometry_sha != original.canonical_geometry_sha256
+    {
+        return Err(ExportError::new(
+            "HASH_MISMATCH",
+            "3MF parsed geometry digest differs",
+        ));
     }
     Ok(Inspected3mf {
         package_sha256: format!("{:x}", Sha256::digest(bytes)),
@@ -379,24 +489,38 @@ pub fn write_3mf_atomic(
         return Err(invalid("refusing to overwrite an existing artifact"));
     }
     if format!("{:x}", Sha256::digest(&artifact.bytes)) != artifact.package_sha256 {
-        return Err(ExportError::new("HASH_MISMATCH", "artifact bytes changed after validation"));
+        return Err(ExportError::new(
+            "HASH_MISMATCH",
+            "artifact bytes changed after validation",
+        ));
     }
-    let file_name = destination.file_name().and_then(|x| x.to_str())
+    let file_name = destination
+        .file_name()
+        .and_then(|x| x.to_str())
         .ok_or_else(|| invalid("missing or non-UTF8 export name"))?;
     let temporary = destination.with_file_name(format!(
         ".{file_name}.{}.{}.staging",
-        std::process::id(), &artifact.package_sha256[..16]
+        std::process::id(),
+        &artifact.package_sha256[..16]
     ));
     // Same-directory hard link creates the final name atomically without
     // ever overwriting an existing job's output, including across OSes.
     let outcome = (|| -> Result<(), ExportError> {
-        let mut file = std::fs::OpenOptions::new().create_new(true).write(true)
-            .open(&temporary).map_err(|e| invalid(format!("staging create: {e}")))?;
-        file.write_all(&artifact.bytes).map_err(|e| invalid(format!("staging write: {e}")))?;
-        file.sync_all().map_err(|e| invalid(format!("staging sync: {e}")))?;
+        let mut file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|e| invalid(format!("staging create: {e}")))?;
+        file.write_all(&artifact.bytes)
+            .map_err(|e| invalid(format!("staging write: {e}")))?;
+        file.sync_all()
+            .map_err(|e| invalid(format!("staging sync: {e}")))?;
         drop(file);
         if is_cancelled() {
-            return Err(ExportError::new("CANCELLED", "export cancelled before publication"));
+            return Err(ExportError::new(
+                "CANCELLED",
+                "export cancelled before publication",
+            ));
         }
         std::fs::hard_link(&temporary, destination)
             .map_err(|e| invalid(format!("atomic no-clobber publication: {e}")))?;
