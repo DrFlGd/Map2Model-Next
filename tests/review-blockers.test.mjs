@@ -42,7 +42,7 @@ test('selection, geodata manifest and grid validators enforce no-data and size l
  assert.equal(validateManifest(manifest).coverageReady,false); // Envelope is never proof of tile coverage.
  assert.equal(validateGrid(grid).ok,true);
  assert.equal(validateGrid(missing).missingSamples,1);
- assert.equal(validateBuild(build,missing).code,'DATA_MISSING');
+ assert.equal(validateBuild({...build,gridSha256:missing.gridSha256},missing).code,'DATA_MISSING');
  assert.equal(validateBuild(build,grid).ok,true);
  assert.equal(validateGrid({...grid,gridSha256:'0'.repeat(64)}).code,'INVALID_GRID_HASH');
  assert.equal(validateGrid({...grid,width:1}).code,'INCOMPLETE_GRID');
