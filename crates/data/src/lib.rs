@@ -286,7 +286,7 @@ fn valid_webp(bytes: &[u8]) -> Result<(), String> {
         ));
     }
     let declared = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize;
-    if declared.checked_add(8) != Some(bytes.len()) || bytes.len() % 2 != 0 {
+    if declared.checked_add(8) != Some(bytes.len()) || !bytes.len().is_multiple_of(2) {
         return Err(err("INVALID_SOURCE", "invalid WebP RIFF length"));
     }
     Ok(())
@@ -515,13 +515,6 @@ fn registry_put(directory: &Path, sha: &str, extension: &str, bytes: &[u8]) -> R
             .map_err(|_| err("INVALID_SOURCE", "staged write failed"))?;
         file.sync_all()
             .map_err(|_| err("INVALID_SOURCE", "staged sync failed"))?;
-        let mut perms = file
-            .metadata()
-            .map_err(|_| err("INVALID_SOURCE", "staged metadata"))?
-            .permissions();
-        perms.set_readonly(true);
-        file.set_permissions(perms)
-            .map_err(|_| err("INVALID_SOURCE", "readonly flag failed"))?;
         // Hard-link creates a new immutable name atomically without replacing another importer.
         match fs::hard_link(&temp, &target) {
             Ok(()) => Ok(()),
@@ -539,6 +532,16 @@ fn registry_put(directory: &Path, sha: &str, extension: &str, bytes: &[u8]) -> R
     })();
     drop(file);
     let _ = fs::remove_file(&temp);
+    // On Windows the read-only bit prevents deleting the staging hard link.
+    // Publish with a writable staging name, unlink it, then protect the final name.
+    if attempt.is_ok() {
+        let mut perms = fs::metadata(&target)
+            .map_err(|_| err("INVALID_SOURCE", "registered asset metadata"))?
+            .permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(&target, perms)
+            .map_err(|_| err("INVALID_SOURCE", "registered readonly flag failed"))?;
+    }
     attempt
 }
 fn index_bytes(source_sha: &str, records: &BTreeMap<u64, TileRecord>) -> Result<Vec<u8>, String> {
@@ -798,9 +801,17 @@ mod tests {
                 .join(format!("{}.pmtiles", source.manifest.source_archive_sha256));
             let mut changed = bytes.clone();
             *changed.last_mut().unwrap() ^= 1;
-            let mut perms = fs::metadata(&registered).unwrap().permissions();
-            perms.set_readonly(false);
-            fs::set_permissions(&registered, perms).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&registered, fs::Permissions::from_mode(0o600)).unwrap();
+            }
+            #[cfg(windows)]
+            {
+                let mut perms = fs::metadata(&registered).unwrap().permissions();
+                perms.set_readonly(false);
+                fs::set_permissions(&registered, perms).unwrap();
+            }
             fs::write(&registered, &changed).unwrap();
             assert!(source
                 .read_registered_tile(1, 0, 0)
