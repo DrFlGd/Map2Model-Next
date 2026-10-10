@@ -533,6 +533,87 @@ impl ImportedSource {
         Ok(result)
     }
 }
+/// Open registry bytes with a bounded handle read and recheck path identity.
+ /// The registry directory is an authorized, private native root (never UI-supplied).
+fn read_registry_entry(directory: &Path, sha: &str, ext: &str, cap: usize)
+    -> Result<Vec<u8>, String>
+{
+    let d = fs::symlink_metadata(directory)
+        .map_err(|_| err("DATA_MISSING", "native registry directory unavailable"))?;
+    if !d.is_dir() || d.file_type().is_symlink() {
+        return Err(err("INVALID_SOURCE", "registry path must be a trusted directory"));
+    }
+    if sha.len() != 64 || !sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        return Err(err("INVALID_SOURCE", "untrusted registry identity"));
+    }
+    let path = directory.join(format!("{sha}.{ext}"));
+    let info = fs::symlink_metadata(&path)
+        .map_err(|_| err("DATA_MISSING", "registered native token unavailable"))?;
+    if !info.is_file() || info.file_type().is_symlink() || info.len() > cap as u64 {
+        return Err(err("INVALID_SOURCE", "registry item must be a bounded regular file"));
+    }
+    let mut file = OpenOptions::new().read(true).open(&path)
+        .map_err(|_| err("DATA_MISSING", "registered native item unreadable"))?;
+    let handle = file.metadata().map_err(|_| err("INVALID_SOURCE", "registry handle invalid"))?;
+    if !handle.is_file() || handle.len() != info.len() {
+        return Err(err("INVALID_SOURCE", "registry handle metadata changed"));
+    }
+    let mut bytes = Vec::new();
+    file.by_ref().take(cap as u64 + 1).read_to_end(&mut bytes)
+        .map_err(|_| err("INVALID_SOURCE", "registered bounded read failed"))?;
+    if bytes.len() > cap || bytes.len() as u64 != info.len() {
+        return Err(err("INVALID_SOURCE", "registry asset changed or is too large"));
+    }
+    let latest = fs::symlink_metadata(&path)
+        .map_err(|_| err("DATA_MISSING", "registered native item was removed"))?;
+    if !latest.is_file() || latest.file_type().is_symlink() || latest.len() != info.len() {
+        return Err(err("INVALID_SOURCE", "registered path mutated while reading"));
+    }
+    if digest(&bytes) != sha {
+        return Err(err("HASH_MISMATCH", "registered native token bytes differ from SHA-256"));
+    }
+    Ok(bytes)
+}
+
+/// Native restart/re-hydration from an independently authenticated archive AND index.
+/// A serialized manifest alone never proves coverage; the registry must be explicit.
+pub fn reopen_registered_pmtiles(registry_root: &Path, manifest: TerrainSourceManifestV1)
+    -> Result<ImportedSource, String>
+{
+    validation::validate_manifest(&manifest)?;
+    if manifest.coverage_status != "verified-tile-index" {
+        return Err(err("DATA_MISSING", "source has no declared immutable coverage index"));
+    }
+    let idx_sha = manifest.coverage_index_sha256.as_deref()
+        .ok_or("DATA_MISSING: missing registered index identity")?;
+    let archive_bytes = read_registry_entry(&registry_root.join("assets"),
+        &manifest.source_archive_sha256, "pmtiles", MAX_ARCHIVE_BYTES as usize)?;
+    if archive_bytes.len() as u64 != manifest.source_bytes {
+        return Err(err("HASH_MISMATCH", "registered source length differs from manifest"));
+    }
+    let inspected = inspect(&archive_bytes)?;
+    if inspected.header.bbox != manifest.coverage_bbox {
+        return Err(err("HASH_MISMATCH", "registered source coverage differs from manifest"));
+    }
+    let stored_index = read_registry_entry(&registry_root.join("indices"), idx_sha,
+        "idx", 4 + 36 + MAX_INDEX_TILES * 20)?;
+    let expected = index_bytes(&manifest.source_archive_sha256, &inspected.tiles)?;
+    if stored_index != expected {
+        return Err(err("HASH_MISMATCH", "registry index differs from inspected source directory"));
+    }
+    let count = inspected.tiles.len();
+    Ok(ImportedSource {
+        coverage_index_token: format!("m2m-index:{idx_sha}"),
+        tile_count: count,
+        manifest,
+        registry_root: registry_root.to_path_buf(),
+        records: inspected.tiles,
+        tile_compression: inspected.header.tile_compression,
+        min_zoom: inspected.header.min_zoom,
+        max_zoom: inspected.header.max_zoom,
+    })
+}
+
 fn registry_put(directory: &Path, sha: &str, extension: &str, bytes: &[u8]) -> Result<(), String> {
     fs::create_dir_all(directory)
         .map_err(|_| err("INVALID_SOURCE", "registry directory creation failed"))?;
@@ -546,27 +627,21 @@ fn registry_put(directory: &Path, sha: &str, extension: &str, bytes: &[u8]) -> R
     }
     let target = directory.join(format!("{sha}.{extension}"));
     if target.exists() {
-        let info = fs::symlink_metadata(&target)
-            .map_err(|_| err("INVALID_SOURCE", "existing registry item invalid"))?;
-        if !info.is_file()
-            || info.file_type().is_symlink()
-            || digest(
-                &fs::read(&target).map_err(|_| err("INVALID_SOURCE", "registry read failed"))?,
-            ) != sha
-        {
-            return Err(err(
-                "HASH_MISMATCH",
-                "existing immutable registry asset invalid",
-            ));
-        }
+        read_registry_entry(directory, sha, extension, bytes.len())?;
         return Ok(());
     }
-    let temp = directory.join(format!("{sha}.{extension}.stage-{}", std::process::id()));
+    // OS-entropy, exclusive, unguessable staging name: safe across concurrent
+    // threads/processes, and never reused after a crash leaves an orphan.
+    let mut random = [0_u8; 16];
+    getrandom::fill(&mut random)
+        .map_err(|_| err("INVALID_SOURCE", "no secure random source for staging"))?;
+    let nonce: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    let temp = directory.join(format!(".{sha}.{extension}.stage-{nonce}"));
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&temp)
-        .map_err(|_| err("INVALID_SOURCE", "staging file unavailable"))?;
+        .map_err(|_| err("INVALID_SOURCE", "exclusive staging file unavailable"))?;
     let attempt = (|| -> Result<(), String> {
         file.write_all(bytes)
             .map_err(|_| err("INVALID_SOURCE", "staged write failed"))?;
@@ -576,13 +651,7 @@ fn registry_put(directory: &Path, sha: &str, extension: &str, bytes: &[u8]) -> R
         match fs::hard_link(&temp, &target) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                let contents =
-                    fs::read(&target).map_err(|_| err("HASH_MISMATCH", "registry race"))?;
-                if digest(&contents) != sha {
-                    Err(err("HASH_MISMATCH", "registry race changed content"))
-                } else {
-                    Ok(())
-                }
+                read_registry_entry(directory, sha, extension, bytes.len()).map(|_| ())
             }
             Err(_) => Err(err("INVALID_SOURCE", "atomic registry publication failed")),
         }
