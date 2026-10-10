@@ -109,7 +109,7 @@ pub struct GeometryReportV1 {
     pub non_manifold_edges: usize,
     pub degenerate_triangles: usize,
     pub minimum_measured_thickness_mm: f64,
-    pub measured_aabb_mm: [f64;6],
+    pub measured_aabb_mm: [f64; 6],
     pub component_count: usize,
     pub part_count: usize,
     pub volume_mm3: f64,

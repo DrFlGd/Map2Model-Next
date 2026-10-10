@@ -1,7 +1,7 @@
 //! Native reusable G0 ingress validators; type deserialization alone is insufficient.
 use crate::{
-    canonical, ElevationGridV1, JobStateV1, MeshAnd3mfResultV1, SelectionV1,
-    TerrainBuildRequestV1, TerrainSourceManifestV1,
+    canonical, ElevationGridV1, JobStateV1, MeshAnd3mfResultV1, SelectionV1, TerrainBuildRequestV1,
+    TerrainSourceManifestV1,
 };
 const MAX_CELLS: usize = 1_000_000;
 
@@ -47,10 +47,7 @@ pub fn validate_selection(v: &SelectionV1) -> Result<(), String> {
     {
         return Err("INVALID_SELECTION: bbox, kind or reference invalid".into());
     }
-    let [east, north] = project_wgs84(
-        [v.bbox[0], v.bbox[1]],
-        [v.bbox[2], v.bbox[3]],
-    )?;
+    let [east, north] = project_wgs84([v.bbox[0], v.bbox[1]], [v.bbox[2], v.bbox[3]])?;
     if east > 10_000.0 || north > 10_000.0 {
         return Err("INVALID_SELECTION: region exceeds 10km G1 extent".into());
     }
@@ -89,13 +86,11 @@ pub fn validate_manifest(v: &TerrainSourceManifestV1) -> Result<bool, String> {
     Ok(v.coverage_status == "verified-tile-index")
 }
 pub fn validate_grid(v: &ElevationGridV1) -> Result<(), String> {
-    let total = v.width.checked_mul(v.height).ok_or("OUT_OF_MEMORY: shape overflow")?;
-    if v.width < 2
-        || v.height < 2
-        || v.width > 4096
-        || v.height > 4096
-        || total > MAX_CELLS
-    {
+    let total = v
+        .width
+        .checked_mul(v.height)
+        .ok_or("OUT_OF_MEMORY: shape overflow")?;
+    if v.width < 2 || v.height < 2 || v.width > 4096 || v.height > 4096 || total > MAX_CELLS {
         return Err("OUT_OF_MEMORY: grid sample budget exceeded".into());
     }
     if !finite(v.dx_meters)
@@ -120,8 +115,14 @@ pub fn validate_grid(v: &ElevationGridV1) -> Result<(), String> {
         }
         return Err("DATA_MISSING: resolve and independently validate bulk grid first".into());
     }
-    let samples = v.samples_meters.as_ref().ok_or("INCOMPLETE_GRID: missing samples")?;
-    let masks = v.valid_mask.as_ref().ok_or("INCOMPLETE_GRID: missing masks")?;
+    let samples = v
+        .samples_meters
+        .as_ref()
+        .ok_or("INCOMPLETE_GRID: missing samples")?;
+    let masks = v
+        .valid_mask
+        .as_ref()
+        .ok_or("INCOMPLETE_GRID: missing masks")?;
     if samples.len() != total || masks.len() != total || v.storage_mode != "inline-fixture" {
         return Err("INCOMPLETE_GRID: sample/mask length mismatch".into());
     }
@@ -144,14 +145,25 @@ pub fn validate_build(req: &TerrainBuildRequestV1, grid: &ElevationGridV1) -> Re
     }
     let [x0, y0, x1, y1] = req.clip_rect_meters;
     let fields = [
-        x0, y0, x1, y1, req.model_width_mm, req.model_height_mm,
-        req.base_thickness_mm, req.minimum_feature_thickness_mm,
-        req.vertical_exaggeration, req.elevation_zero_meters,
+        x0,
+        y0,
+        x1,
+        y1,
+        req.model_width_mm,
+        req.model_height_mm,
+        req.base_thickness_mm,
+        req.minimum_feature_thickness_mm,
+        req.vertical_exaggeration,
+        req.elevation_zero_meters,
     ];
     if !fields.iter().all(|x| finite(*x))
-        || x0 >= x1 || y0 >= y1 || req.model_width_mm <= 0.0
-        || req.model_height_mm <= 0.0 || req.base_thickness_mm <= 0.0
-        || req.minimum_feature_thickness_mm <= 0.0 || req.vertical_exaggeration <= 0.0
+        || x0 >= x1
+        || y0 >= y1
+        || req.model_width_mm <= 0.0
+        || req.model_height_mm <= 0.0
+        || req.base_thickness_mm <= 0.0
+        || req.minimum_feature_thickness_mm <= 0.0
+        || req.vertical_exaggeration <= 0.0
     {
         return Err("INVALID_DIMENSIONS: print parameters invalid".into());
     }
@@ -168,8 +180,10 @@ pub fn validate_build(req: &TerrainBuildRequestV1, grid: &ElevationGridV1) -> Re
         return Err("INVALID_DIMENSIONS: clip outside grid".into());
     }
     for (value, start, step) in [
-        (x0, min_e, grid.dx_meters), (x1, min_e, grid.dx_meters),
-        (y0, min_n, grid.dy_meters), (y1, min_n, grid.dy_meters),
+        (x0, min_e, grid.dx_meters),
+        (x1, min_e, grid.dx_meters),
+        (y0, min_n, grid.dy_meters),
+        (y1, min_n, grid.dy_meters),
     ] {
         let q = (value - start) / step;
         if (q - q.round()).abs() > 1e-8 {
@@ -180,7 +194,11 @@ pub fn validate_build(req: &TerrainBuildRequestV1, grid: &ElevationGridV1) -> Re
     if values.iter().any(Option::is_none) {
         return Err("DATA_MISSING: missing grid sample in G1 clip".into());
     }
-    let lowest = values.iter().flatten().copied().fold(f64::INFINITY, f64::min);
+    let lowest = values
+        .iter()
+        .flatten()
+        .copied()
+        .fold(f64::INFINITY, f64::min);
     if req.elevation_zero_meters > lowest + 1e-9 {
         return Err("INVALID_DIMENSIONS: Z baseline above lowest terrain".into());
     }
@@ -188,10 +206,14 @@ pub fn validate_build(req: &TerrainBuildRequestV1, grid: &ElevationGridV1) -> Re
 }
 pub fn validate_result(v: &MeshAnd3mfResultV1) -> Result<(), String> {
     let g = &v.geometry;
-    if !g.closed || !g.oriented || g.non_manifold_edges > 0
-        || g.degenerate_triangles > 0 || g.component_count != 1
+    if !g.closed
+        || !g.oriented
+        || g.non_manifold_edges > 0
+        || g.degenerate_triangles > 0
+        || g.component_count != 1
         || g.self_intersection_status != "passed"
-        || g.validation.status != "passed" || v.artifact.conformance != "passed"
+        || g.validation.status != "passed"
+        || v.artifact.conformance != "passed"
     {
         return Err("INVALID_GEOMETRY: mesh not independently validated".into());
     }
@@ -199,7 +221,8 @@ pub fn validate_result(v: &MeshAnd3mfResultV1) -> Result<(), String> {
         || g.measured_aabb_mm[0] >= g.measured_aabb_mm[3]
         || g.measured_aabb_mm[1] >= g.measured_aabb_mm[4]
         || g.measured_aabb_mm[2] >= g.measured_aabb_mm[5]
-        || !finite(g.volume_mm3) || g.volume_mm3 <= 0.0
+        || !finite(g.volume_mm3)
+        || g.volume_mm3 <= 0.0
     {
         return Err("INVALID_GEOMETRY: AABB or volume invalid".into());
     }
@@ -209,14 +232,18 @@ pub fn validate_job(v: &JobStateV1) -> Result<(), String> {
     if !finite(v.progress01) || !(0.0..=1.0).contains(&v.progress01) {
         return Err("INTERNAL_ERROR: job progress outside bounds".into());
     }
-    if v.status == "succeeded" && (v.reason_code.is_some() || v.phase != "complete" || v.progress01 != 1.0)
+    if v.status == "succeeded"
+        && (v.reason_code.is_some() || v.phase != "complete" || v.progress01 != 1.0)
     {
         return Err("INTERNAL_ERROR: false job success".into());
     }
-    if v.status == "failed" && (v.reason_code.is_none() || v.reason_code.as_deref() == Some("CANCELLED")) {
+    if v.status == "failed"
+        && (v.reason_code.is_none() || v.reason_code.as_deref() == Some("CANCELLED"))
+    {
         return Err("INTERNAL_ERROR: missing failure reason".into());
     }
-    if v.status == "cancelled" && (v.phase != "cancel" || v.reason_code.as_deref() != Some("CANCELLED"))
+    if v.status == "cancelled"
+        && (v.phase != "cancel" || v.reason_code.as_deref() != Some("CANCELLED"))
     {
         return Err("INTERNAL_ERROR: missing cancellation code".into());
     }
@@ -226,29 +253,47 @@ pub fn validate_job(v: &JobStateV1) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
-    fn reusable_native_boundary_checks_fixture_and_false_success(){
-        let s:SelectionV1=serde_json::from_str(include_str!("../../../tests/fixtures/contracts/v1/SelectionV1.valid.json")).unwrap();
-        let m:TerrainSourceManifestV1=serde_json::from_str(include_str!("../../../tests/fixtures/contracts/v1/TerrainSourceManifestV1.valid.json")).unwrap();
-        let g:ElevationGridV1=serde_json::from_str(include_str!("../../../tests/fixtures/contracts/v1/ElevationGridV1.valid.json")).unwrap();
-        let b:TerrainBuildRequestV1=serde_json::from_str(include_str!("../../../tests/fixtures/contracts/v1/TerrainBuildRequestV1.valid.json")).unwrap();
-        let j:JobStateV1=serde_json::from_str(include_str!("../../../tests/fixtures/contracts/v1/JobStateV1.valid.json")).unwrap();
+    fn reusable_native_boundary_checks_fixture_and_false_success() {
+        let s: SelectionV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
+        ))
+        .unwrap();
+        let m: TerrainSourceManifestV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/TerrainSourceManifestV1.valid.json"
+        ))
+        .unwrap();
+        let g: ElevationGridV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/ElevationGridV1.valid.json"
+        ))
+        .unwrap();
+        let b: TerrainBuildRequestV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/TerrainBuildRequestV1.valid.json"
+        ))
+        .unwrap();
+        let j: JobStateV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/JobStateV1.valid.json"
+        ))
+        .unwrap();
         assert!(validate_selection(&s).is_ok());
         assert_eq!(validate_manifest(&m).unwrap(), false);
         assert!(validate_grid(&g).is_ok());
-        assert!(validate_build(&b,&g).is_ok());
+        assert!(validate_build(&b, &g).is_ok());
         assert!(validate_job(&j).is_ok());
-        let mut bad=j;
-        bad.status="failed".into();
+        let mut bad = j;
+        bad.status = "failed".into();
         assert!(validate_job(&bad).is_err());
-        let mut missing:ElevationGridV1=serde_json::from_str(include_str!("../../../tests/fixtures/contracts/v1/ElevationGridV1.missing.json")).unwrap();
+        let mut missing: ElevationGridV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/ElevationGridV1.missing.json"
+        ))
+        .unwrap();
         assert!(validate_grid(&missing).is_ok());
-        missing.grid_sha256=b.grid_sha256.clone();
+        missing.grid_sha256 = b.grid_sha256.clone();
         assert!(validate_grid(&missing).is_err());
     }
     #[test]
-    fn projection_reference(){
-        let [e,n]=project_wgs84([-84.09,39.741],[-84.089,39.742]).unwrap();
-        assert!((e-85.71560839369111).abs()<1e-6);
-        assert!((n-111.02965952283863).abs()<1e-6);
+    fn projection_reference() {
+        let [e, n] = project_wgs84([-84.09, 39.741], [-84.089, 39.742]).unwrap();
+        assert!((e - 85.71560839369111).abs() < 1e-6);
+        assert!((n - 111.02965952283863).abs() < 1e-6);
     }
 }
