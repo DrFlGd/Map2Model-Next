@@ -3,6 +3,9 @@
 //! These structs deserialize samples; higher-level semantic validation is required.
 use serde::{Deserialize, Serialize};
 
+pub mod canonical;
+pub mod validation;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TerrainProfileV1 {
