@@ -2,7 +2,7 @@
 //! Data never leaves the local native engine. All source policy is caller-supplied;
 //! no zoom, header bbox, or metadata string is substituted for proven rights/datum.
 use flate2::read::GzDecoder;
-use map2model_contracts::{canonical, validation, TerrainSourceManifestV1};
+use map2model_contracts::{canonical, validation, SelectionV1, TerrainSourceManifestV1};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
@@ -17,6 +17,7 @@ const MAX_METADATA_BYTES: usize = 128 * 1024;
 const MAX_TILE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_ZOOM: u8 = 22;
 const INDEX_MAGIC: &[u8] = b"M2M-PMT-INDEX-1\0";
+const MAX_COVERAGE_QUERY_TILES: usize = 4096;
 
 fn err(code: &str, detail: &str) -> String {
     format!("{code}: {detail}")
@@ -324,7 +325,11 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
     let root_entries = parse_directory(&root)?;
     let mut records = BTreeMap::new();
     let mut total = 0_usize;
-    for e in root_entries {
+    for (root_position, e) in root_entries.iter().enumerate() {
+        let next_start = root_entries.get(root_position + 1).map(|next| next.id);
+        // The parent is the exact starting key for a leaf, and the following
+        // root key is an exclusive bound. Otherwise indexed tiles are unreachable
+        // using a standards-conforming PMTiles point lookup.
         let entries = if e.run == 0 {
             let absolute = h
                 .leaf
@@ -340,17 +345,22 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
                 MAX_DIRECTORY_BYTES,
             )?;
             let children = parse_directory(&leaf)?;
-            if children.iter().any(|child| child.run == 0) {
-                return Err(err("INVALID_SOURCE", "nested leaf directory unsupported"));
+            if children.first().is_none_or(|child| child.id != e.id)
+                || children.iter().any(|child| child.run == 0)
+            {
+                return Err(err("INVALID_SOURCE", "leaf must begin at parent ID and contain tile runs"));
             }
             children
         } else {
-            vec![e]
+            vec![e.clone()]
         };
         for t in entries {
             let end =
                 t.id.checked_add(t.run)
                     .ok_or_else(|| err("INVALID_SOURCE", "tile run overflow"))?;
+            if next_start.is_some_and(|limit| end > limit) {
+                return Err(err("INVALID_SOURCE", "tile run crosses the next root boundary"));
+            }
             let offset = h
                 .tiles
                 .0
@@ -425,10 +435,26 @@ pub struct ImportedSource {
     registry_root: PathBuf,
     records: BTreeMap<u64, TileRecord>,
     tile_compression: u8,
+    min_zoom: u8,
+    max_zoom: u8,
 }
 impl ImportedSource {
+    /// Re-authenticate the durable index before using any cached in-memory lookup.
+    /// A header or digest declaration is NOT a coverage proof.
+    fn verify_registered_index(&self) -> Result<(), String> {
+        let sha = self.manifest.coverage_index_sha256.as_deref()
+            .ok_or("DATA_MISSING: verified coverage index not declared")?;
+        let stored = read_registry_entry(&self.registry_root.join("indices"), sha,
+            "idx", 4 + 36 + MAX_INDEX_TILES * 20)?;
+        let expected = index_bytes(&self.manifest.source_archive_sha256, &self.records)?;
+        if stored != expected {
+            return Err(err("HASH_MISMATCH", "registered index differs from canonical inspected archive"));
+        }
+        Ok(())
+    }
     /// Uses the *actual checked directory*. Header bounds alone cannot satisfy this query.
     pub fn verify_required_tiles(&self, required: &[(u8, u32, u32)]) -> Result<(), String> {
+        self.verify_registered_index()?;
         for &(z, x, y) in required {
             let id = tile_id(z, x, y)?;
             if !self.records.contains_key(&id) {
@@ -439,28 +465,59 @@ impl ImportedSource {
         }
         Ok(())
     }
+    /// Generate the complete conservative XYZ tile set touched by a frozen WGS84
+    /// selection. Never mark Generation Ready from header bbox/zoom alone.
+    pub fn verify_selection_coverage(&self, selection: &SelectionV1, zoom: u8)
+        -> Result<usize, String>
+    {
+        validation::validate_selection(selection)?;
+        if zoom < self.min_zoom || zoom > self.max_zoom {
+            return Err(err("DATA_MISSING", "requested source zoom not present"));
+        }
+        let b = selection.bbox;
+        let h = self.manifest.coverage_bbox;
+        if b[0] < h[0] || b[1] < h[1] || b[2] > h[2] || b[3] > h[3] {
+            return Err(err("DATA_MISSING", "selection outside source geographic envelope"));
+        }
+        let n = (1_u64 << zoom) as f64;
+        let x = |lon: f64| ((lon + 180.) * n / 360.).clamp(0., n);
+        let y = |lat: f64| {
+            let p = lat.to_radians();
+            ((1. - (p.tan() + 1. / p.cos()).ln() / std::f64::consts::PI) / 2. * n)
+                .clamp(0., n)
+        };
+        let lower = |f: f64| f.floor().min(n - 1.) as u32;
+        let upper = |f: f64| {
+            if f == f.floor() && f > 0. { (f as u32 - 1).min(n as u32 - 1) }
+            else { lower(f) }
+        };
+        let (x0, x1) = (lower(x(b[0])), upper(x(b[2])));
+        let (y0, y1) = (lower(y(b[3])), upper(y(b[1])));
+        if x1 < x0 || y1 < y0 {
+            return Err(err("INVALID_SELECTION", "selection yields empty XYZ tile range"));
+        }
+        let count = (u64::from(x1) - u64::from(x0) + 1)
+            .checked_mul(u64::from(y1) - u64::from(y0) + 1)
+            .ok_or("OUT_OF_MEMORY: selection tile count overflow")?;
+        if count > MAX_COVERAGE_QUERY_TILES as u64 {
+            return Err(err("OUT_OF_MEMORY", "selection tile coverage exceeds query limit"));
+        }
+        let mut needed = Vec::with_capacity(count as usize);
+        for x in x0..=x1 {
+            for y in y0..=y1 {
+                needed.push((zoom, x, y));
+            }
+        }
+        self.verify_required_tiles(&needed)?;
+        Ok(needed.len())
+    }
     /// Native registry access; renderer passes no path. Rehashes immutable on-disk archive.
     pub fn read_registered_tile(&self, z: u8, x: u32, y: u32) -> Result<Vec<u8>, String> {
         self.verify_required_tiles(&[(z, x, y)])?;
         let id = tile_id(z, x, y)?;
         let token = &self.manifest.source_archive_sha256;
-        let path = self
-            .registry_root
-            .join("assets")
-            .join(format!("{token}.pmtiles"));
-        let info = fs::symlink_metadata(&path)
-            .map_err(|_| err("DATA_MISSING", "registered archive unavailable"))?;
-        if !info.is_file() || info.file_type().is_symlink() || info.len() > MAX_ARCHIVE_BYTES {
-            return Err(err(
-                "INVALID_SOURCE",
-                "registered asset is not a bounded regular file",
-            ));
-        }
-        let bytes =
-            fs::read(&path).map_err(|_| err("DATA_MISSING", "registered asset unreadable"))?;
-        if digest(&bytes) != *token {
-            return Err(err("HASH_MISMATCH", "registered source bytes changed"));
-        }
+        let bytes = read_registry_entry(&self.registry_root.join("assets"), token,
+            "pmtiles", MAX_ARCHIVE_BYTES as usize)?;
         let record = &self.records[&id];
         let result = decompress(
             section(
@@ -673,6 +730,8 @@ pub fn import_local_pmtiles(
         registry_root: registry_root.to_path_buf(),
         records: archive.tiles,
         tile_compression: archive.header.tile_compression,
+        min_zoom: archive.header.min_zoom,
+        max_zoom: archive.header.max_zoom,
     })
 }
 #[cfg(test)]
