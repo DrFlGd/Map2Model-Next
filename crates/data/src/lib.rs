@@ -809,6 +809,8 @@ mod tests {
             #[cfg(windows)]
             {
                 let mut perms = fs::metadata(&registered).unwrap().permissions();
+                // Windows fixture tampering is deliberate; Unix uses narrow mode 0600 above.
+                #[allow(clippy::permissions_set_readonly_false)]
                 perms.set_readonly(false);
                 fs::set_permissions(&registered, perms).unwrap();
             }
