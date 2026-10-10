@@ -1,0 +1,39 @@
+name: Windows desktop shell package (A1-03)
+
+on:
+  push:
+    branches: ['agent/lead-A1-03-desktop']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install desktop build dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate contracts and desktop unit tests
+        run: npm run ci
+      - name: Package Windows portable desktop
+        run: npx electron-builder --win portable --x64 --publish never
+      - name: Verify Windows portable EXE exists
+        shell: pwsh
+        run: |
+          $releases = @(Get-ChildItem -Path release -Recurse -File -Filter "*.exe")
+          if ($releases.Count -lt 1) { throw "No portable Windows EXE was created" }
+          $releases | ForEach-Object { Write-Host "$($_.FullName): $($_.Length) bytes" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Map2Model-Next-A1-03-Windows-Shell
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14

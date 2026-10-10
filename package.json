@@ -2,18 +2,59 @@
   "name": "map2model-next",
   "private": true,
   "version": "0.0.1",
-  "description": "Independent local-first map-to-3MF application",
+  "description": "Local-first map-to-3MF application, Windows desktop shell",
   "engines": {
     "node": ">=22.16.0 <23"
   },
   "devDependencies": {
     "ajv": "8.17.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "electron": "38.2.2",
+    "electron-builder": "26.0.12",
+    "vite": "7.1.9",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "maplibre-gl": "5.7.1"
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "lint": "node tools/check-structure.mjs",
     "typecheck": "tsc --noEmit",
-    "ci": "npm run lint && npm run typecheck && npm test"
+    "ci": "npm run lint && npm run typecheck && npm test && npm run desktop:build",
+    "desktop:build": "vite build --config apps/desktop/vite.config.mjs",
+    "desktop:serve": "vite --config apps/desktop/vite.config.mjs",
+    "desktop:electron": "electron .",
+    "desktop:electron-dev": "electron .",
+    "desktop:package": "npm run desktop:build && electron-builder --win portable --x64 --publish never",
+    "desktop:pack-unpacked": "npm run desktop:build && electron-builder --win --dir --x64 --publish never"
+  },
+  "main": "apps/desktop/electron/main.cjs",
+  "author": "Map2Model Next contributors",
+  "build": {
+    "appId": "dev.map2model.next",
+    "productName": "Map2Model Next",
+    "artifactName": "Map2Model-Next-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "files": [
+      "apps/desktop/electron/**/*",
+      "apps/desktop/shared/**/*",
+      "apps/desktop/dist/**/*",
+      "packages/contracts/src/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

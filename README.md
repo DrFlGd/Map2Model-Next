@@ -1,52 +1,31 @@
 # Map2Model Next
 
-**Local-first geographic-to-3D-print desktop application — ground-up redesign**
+**Independent local-first geographic-to-3D-print desktop application — clean-room redesign**
 
-This repository is for the independent **Map2Model Next** project. The existing Map2Model / Mini Skyline local mirror is **reference material**, not the application's source code or a dependency.
+## Milestones
 
-## Project documents
+- **G0 approved / merged:** Six versioned cross-agent contracts at reviewed commit `cabfadb4917fff19ef07325f23ce0fdde30341e3`. [PR #11](https://github.com/DrFlGd/Map2Model-Next/pull/11) records the exact approvals, six schema Git blob IDs, reference fixtures and accepted limits.
+- **G1 in development:** Lead (A1-03) implements the Windows desktop shell; Agent 2 (A2-01/A2-02) implements lawful offline Mapterhorn terrain import/decoding; Agent 3 (A3-01/A3-02) implements watertight terrain mesh and genuine 3MF export.
+- **G2/G3 not complete:** Integration, offline data readiness, Windows runtime without connectivity and slicer-validation are required before a usable printer export can be claimed.
 
-- [M2M-REQ-001 — Requirements and Technical Architecture, v1.1](docs/requirements/Map2Model_Local_First_Requirements_v1.1.md) — authoritative specification, including the multi-agent execution plan (§21)
-- [Agent handoff: START HERE](docs/agent-handoff/START_HERE.md) — team sequencing and acceptance gates
-- [Agent 1 — Lead Architect & Integrator](docs/agent-handoff/agent-1-lead-architect.md)
-- [Agent 2 — Geographic Data Engine](docs/agent-handoff/agent-2-geodata-engine.md)
-- [Agent 3 — Geometry & 3MF Engine](docs/agent-handoff/agent-3-mesh-and-3mf.md)
-- [Working rules for coding agents](AGENTS.md)
+## Where to begin
+- [A1-03 desktop shell](docs/desktop/README.md)
+- [Requirements v1.1](docs/requirements/Map2Model_Local_First_Requirements_v1.1.md)
+- [Start here — agent assignments](docs/agent-handoff/START_HERE.md)
+- [Agent working rules](AGENTS.md)
+- [Frozen contracts (schema V1)](packages/contracts/schema/v1)
+- [Architecture, security, provenance and licensing](docs/architecture/ADR-004-contract-proposal.md)
+- [GitHub issues / work tracking](https://github.com/DrFlGd/Map2Model-Next/issues)
 
-## Current phase: G0 — foundation, not feature implementation
+The existing Map2Model/Mini Skyline mirrored app is **reference material only**, not a dependency or source-code transplant.
 
-**G0 must happen before parallel feature work.** The lead owns A1-01 (repository, toolchain, CI, licensing/architecture decisions) and A1-02 (versioned cross-agent contracts, fixtures and CLI/IPC harness). Agents 2 and 3 review and explicitly approve the interfaces before work starts on A2/A3.
-
-The first demonstrable milestone is **import local terrain → select geographic bounds → generate watertight terrain → export valid 3MF → repeat with the network disabled on Windows**. Planetary maps, online search, basemap caching, Overture buildings/roads, and full region downloads are subsequent phases.
-
-### Expected repository shape (proposed, to be ratified at G0)
-
-```text
-apps/desktop/                Windows UI and desktop shell (Agent 1)
-packages/contracts/          Versioned cross-agent contracts (Agent 1)
-packages/ui/                 Shared UI components (Agent 1)
-crates/data/                 Offline terrain import/decoding (Agent 2)
-crates/engine/               Mesh generation (Agent 3)
-crates/export/               3MF writer and validation (Agent 3)
-tests/                       Fixtures, integration and offline tests
-docs/requirements/           Versioned project specification
-docs/agent-handoff/          Role-specific kickoff briefs
+### Local build
+```sh
+npm install
+npm run ci
+cargo test --workspace
+npm run desktop:electron
 ```
+Run on Windows to build a portable executable: `npm run desktop:package`.
 
-These paths are ownership guidelines rather than completed directories. No claims of working implementation should be made until corresponding acceptance tests run.
-
-## Collaboration rules
-
-- Lead-reviewed PRs, with explicit requirement IDs, testing evidence, fixture hashes, and license/source notes.
-- Freeze the six `V1` contracts named in §21.3 at G0, and record the approving commit SHA.
-- Respect source licenses, privacy, no-scraping policies, vertical datum and native resolution accuracy. Do not copy unlicensed Mini Skyline implementation code.
-- Agent roles are assignments, not autonomous GitHub or background agents; project work begins when contributors are assigned and authorized.
-
-See the [agent handoff guide](docs/agent-handoff/START_HERE.md) to begin.
-
-## Status
-
-- [x] Requirements and agent handoff available
-- [ ] G0 architecture and versioned contracts approved
-- [ ] Offline terrain vertical slice implemented
-- [ ] Windows executable and offline acceptance gate passed
+**Important:** The current A1-03 desktop UI offers an offline coordinate grid, rectangular `SelectionV1` selections and local project save/open. It does not yet render terrain/buildings or export a 3MF; those controls are disabled until Agents 2/3 deliver and G2 integration passes.
