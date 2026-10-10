@@ -89,9 +89,17 @@ export function validateBuild(v,grid){
    for(const [a,min,step] of [[x0,gx1,grid.dxMeters],[x1,gx1,grid.dxMeters],[y0,gy1,grid.dyMeters],[y1,gy1,grid.dyMeters]]){
      const f=(a-min)/step;if(Math.abs(f-Math.round(f))>1e-8)return fail('INVALID_DIMENSIONS','G1 requires grid-node-aligned clip edges.');
    }
-   if(val.missingSamples>0)return fail('DATA_MISSING','G1 rejects no-data cells before generating triangles.');
-   const lowest=Math.min(...grid.samplesMeters);
-   if(v.elevationZeroMeters>lowest+1e-9)return fail('INVALID_DIMENSIONS','Elevation baseline must be <= minimum included elevation.');
+   let lowest=Infinity,included=0;
+   for(let row=0;row<grid.height;row++)for(let col=0;col<grid.width;col++){
+     const gx=grid.minEastMeters+col*grid.dxMeters,gy=grid.maxNorthMeters-row*grid.dyMeters;
+     if(gx<x0-1e-9||gx>x1+1e-9||gy<y0-1e-9||gy>y1+1e-9)continue;
+     included++;
+     const i=row*grid.width+col;
+     if(!grid.validMask[i])return fail('DATA_MISSING','A clipped terrain sample is missing.',{invalidSampleIndex:i});
+     lowest=Math.min(lowest,grid.samplesMeters[i]);
+   }
+   if(included<4)return fail('INVALID_DIMENSIONS','Clip must contain at least 2×2 nodes.');
+   if(v.elevationZeroMeters>lowest+1e-9)return fail('INVALID_DIMENSIONS','Elevation baseline above included terrain.');
  }
  return {ok:true,xyMmPerMeter:sx,zMmForElevation:z=>v.baseThicknessMm+(z-v.elevationZeroMeters)*sx*v.verticalExaggeration};
 }

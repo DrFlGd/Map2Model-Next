@@ -191,16 +191,25 @@ pub fn validate_build(req: &TerrainBuildRequestV1, grid: &ElevationGridV1) -> Re
         }
     }
     let values = grid.samples_meters.as_ref().ok_or("INCOMPLETE_GRID")?;
-    if values.iter().any(Option::is_none) {
-        return Err("DATA_MISSING: missing grid sample in G1 clip".into());
+    let mut lowest = f64::INFINITY;
+    let mut included = 0_usize;
+    for (i, value) in values.iter().enumerate() {
+        let col = i % grid.width;
+        let row = i / grid.width;
+        let gx = grid.min_east_meters + col as f64 * grid.dx_meters;
+        let gy = grid.max_north_meters - row as f64 * grid.dy_meters;
+        if gx < x0 - 1e-9 || gx > x1 + 1e-9 || gy < y0 - 1e-9 || gy > y1 + 1e-9 {
+            continue;
+        }
+        included += 1;
+        let z = value.ok_or("DATA_MISSING: clipped sample absent")?;
+        lowest = lowest.min(z);
     }
-    let lowest = values
-        .iter()
-        .flatten()
-        .copied()
-        .fold(f64::INFINITY, f64::min);
+    if included < 4 {
+        return Err("INVALID_DIMENSIONS: clip includes fewer than 2x2 grid nodes".into());
+    }
     if req.elevation_zero_meters > lowest + 1e-9 {
-        return Err("INVALID_DIMENSIONS: Z baseline above lowest terrain".into());
+        return Err("INVALID_DIMENSIONS: Z baseline above included terrain".into());
     }
     Ok(())
 }

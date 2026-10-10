@@ -185,7 +185,8 @@
         },
         "sizeBytes": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "format": {
           "const": "3mf"

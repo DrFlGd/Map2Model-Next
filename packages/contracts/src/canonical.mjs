@@ -58,7 +58,7 @@ export function canonicalMeshDigest(mesh){
    const canonical=rotated(indices.map(i=>indexes.get(i)));
    if(new Set(canonical).size!==3)throw Error('degenerate triangle indices');
    return {partId,indices:canonical};
- }).sort((a,b)=>a.partId.localeCompare(b.partId,'en')||compare3(a.indices,b.indices));
+ }).sort((a,b)=>Buffer.compare(Buffer.from(a.partId,'utf8'),Buffer.from(b.partId,'utf8'))||compare3(a.indices,b.indices));
  const w=new CanonicalWriter('M2M-MESH-1\0');
  w.u32(order.length);
  for(const {v} of order)for(const n of v)w.i64(n);
