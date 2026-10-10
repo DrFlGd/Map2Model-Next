@@ -275,7 +275,7 @@ mod tests {
         ))
         .unwrap();
         assert!(validate_selection(&s).is_ok());
-        assert_eq!(validate_manifest(&m).unwrap(), false);
+        assert!(!validate_manifest(&m).unwrap());
         assert!(validate_grid(&g).is_ok());
         assert!(validate_build(&b, &g).is_ok());
         assert!(validate_job(&j).is_ok());
