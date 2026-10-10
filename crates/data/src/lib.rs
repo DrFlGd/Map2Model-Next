@@ -609,7 +609,7 @@ fn read_registry_entry(
         return Err(err("INVALID_SOURCE", "registry handle metadata changed"));
     }
     let mut bytes = Vec::new();
-    file.by_ref()
+    Read::by_ref(&mut file)
         .take(cap as u64 + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| err("INVALID_SOURCE", "registered bounded read failed"))?;
@@ -824,10 +824,24 @@ pub fn import_local_pmtiles(
             "nominal resolution or uncertainty invalid",
         ));
     }
-    let bytes =
-        fs::read(source_path).map_err(|_| err("DATA_MISSING", "PMTiles file cannot be read"))?;
-    if bytes.len() as u64 != info.len() {
-        return Err(err("INVALID_SOURCE", "archive changed during import"));
+    // Never trust a pre-open metadata check as a memory-allocation bound.
+    let mut handle = OpenOptions::new().read(true).open(source_path)
+        .map_err(|_| err("DATA_MISSING", "PMTiles file cannot be opened"))?;
+    let current = handle.metadata()
+        .map_err(|_| err("INVALID_SOURCE", "PMTiles input handle invalid"))?;
+    if !current.is_file() || current.len() != info.len() {
+        return Err(err("INVALID_SOURCE", "archive changed before bounded import"));
+    }
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut handle).take(MAX_ARCHIVE_BYTES + 1).read_to_end(&mut bytes)
+        .map_err(|_| err("INVALID_SOURCE", "PMTiles bounded read failed"))?;
+    if bytes.len() as u64 != info.len() || bytes.len() as u64 > MAX_ARCHIVE_BYTES {
+        return Err(err("INVALID_SOURCE", "archive changed during bounded import"));
+    }
+    let latest = fs::symlink_metadata(source_path)
+        .map_err(|_| err("DATA_MISSING", "archive disappeared during import"))?;
+    if !latest.is_file() || latest.file_type().is_symlink() || latest.len() != info.len() {
+        return Err(err("INVALID_SOURCE", "archive path changed during import"));
     }
     let source_sha = digest(&bytes);
     if declaration
@@ -1087,6 +1101,14 @@ mod tests {
                 "{}.idx",
                 manifest.coverage_index_sha256.as_ref().unwrap()
             ));
+            #[cfg(windows)]
+            {
+                let mut permissions = fs::metadata(&idx).unwrap().permissions();
+                // This mutation is test-only, deliberately simulating a missing index.
+                #[allow(clippy::permissions_set_readonly_false)]
+                permissions.set_readonly(false);
+                fs::set_permissions(&idx, permissions).unwrap();
+            }
             fs::remove_file(&idx).map_err(|_| "INVALID_SOURCE: cannot remove synthetic index")?;
             assert!(reopen_registered_pmtiles(&registry, manifest.clone()).is_err());
             assert!(reopened.verify_required_tiles(&[(1, 0, 0)]).is_err());
