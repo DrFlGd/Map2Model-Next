@@ -217,15 +217,24 @@ fn read_part(zip: &mut ZipArchive<Cursor<&[u8]>>, name: &str) -> Result<Vec<u8>,
 fn parse_xml(xml: &str) -> Result<Document<'_>, ExportError> {
     Document::parse(xml).map_err(|e| invalid(format!("invalid XML/DTD in 3MF: {e}")))
 }
-fn required_attr<'a, 'input>(n: roxmltree::Node<'a, 'input>, attr: &str) -> Result<&'input str, ExportError> {
-    n.attribute(attr).ok_or_else(|| invalid(format!("3MF XML required attribute {attr} absent")))
+fn required_attr<'a, 'input>(
+    n: roxmltree::Node<'a, 'input>,
+    attr: &str,
+) -> Result<&'input str, ExportError> {
+    n.attribute(attr)
+        .ok_or_else(|| invalid(format!("3MF XML required attribute {attr} absent")))
 }
 fn exactly_one<'a, 'input>(
-    doc: &'a Document<'input>, namespace: &str, name: &str
+    doc: &'a Document<'input>,
+    namespace: &str,
+    name: &str,
 ) -> Result<roxmltree::Node<'a, 'input>, ExportError> {
-    let mut nodes = doc.descendants().filter(|n| n.is_element()
-        && n.tag_name().namespace() == Some(namespace) && n.tag_name().name() == name);
-    let node = nodes.next().ok_or_else(|| invalid(format!("3MF missing <{name}>")))?;
+    let mut nodes = doc.descendants().filter(|n| {
+        n.is_element() && n.tag_name().namespace() == Some(namespace) && n.tag_name().name() == name
+    });
+    let node = nodes
+        .next()
+        .ok_or_else(|| invalid(format!("3MF missing <{name}>")))?;
     if nodes.next().is_some() {
         return Err(invalid(format!("3MF multiple <{name}> elements")));
     }
@@ -480,7 +489,10 @@ pub fn write_3mf_atomic(
     mut is_cancelled: impl FnMut() -> bool,
 ) -> Result<(), ExportError> {
     if is_cancelled() {
-        return Err(ExportError::new("CANCELLED", "export cancelled before publication"));
+        return Err(ExportError::new(
+            "CANCELLED",
+            "export cancelled before publication",
+        ));
     }
     if destination.extension().and_then(|x| x.to_str()) != Some("3mf") {
         return Err(invalid("destination must end in .3mf"));
