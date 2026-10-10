@@ -1,0 +1,6 @@
+* text=auto
+*.rs text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.3mf binary
+*.pmtiles binary
