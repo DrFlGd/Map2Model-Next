@@ -14,7 +14,7 @@ fn error(code: &str, why: &str) -> String {
     format!("{code}: {why}")
 }
 /// Decoded WebP in north-up, row-major image order. Alpha<255 is no-data.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TerrariumTile {
     heights: Vec<f64>,
     valid: Vec<bool>,
