@@ -247,8 +247,11 @@ mod tests {
         assert_eq!(alpha.height(124,256),Some(-123.5));
         assert!(alpha.number_of_missing_pixels()>0);
         assert!(decode_terrarium_webp(b"wrong").is_err());
-        // 1x1 WebP from A2-01 framing fixtures does not pass full-size decoder.
-        let one_pixel = WebPEncoder::new_lossless(&mut Vec::new());drop(one_pixel);
+        // A framing-valid 1x1 WebP is not an elevation tile.
+        let mut single=Vec::new();
+        WebPEncoder::new_lossless(&mut single).encode(
+            &[127,132,128],1,1,ExtendedColorType::Rgb8).unwrap();
+        assert!(decode_terrarium_webp(&single).unwrap_err().starts_with("INVALID_SOURCE"));
     }
     #[test]
     fn builds_verified_deterministic_north_up_grid_from_full_512_webp_pmtiles() {
@@ -304,8 +307,8 @@ mod tests {
             let path2=root.join("nodata.pmtiles");
             fs::write(&path2,fixture_pmtiles(&missing_bytes)).unwrap();
             let other=import_local_pmtiles(&path2,&root.join("registry-other"),&policy())?;
-            assert!(decode_selection_grid(&other,&selection(),12)?
-                .valid_mask.as_ref().unwrap().iter().all(|p|*p)); // will be rejected instead
+            assert!(decode_selection_grid(&other,&selection(),12)
+                .unwrap_err().starts_with("DATA_MISSING"));
             Ok(())
         })();
         let _=fs::remove_dir_all(root);result.unwrap();
