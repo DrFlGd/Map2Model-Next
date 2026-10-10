@@ -26,7 +26,10 @@ fn canonical_180_by_80_by_204_mm_reference_is_closed_oriented_and_deterministic(
     assert_eq!(output.mesh.rows, 3);
     assert_eq!(output.geometry.vertices, 24);
     assert_eq!(output.geometry.triangles, 44);
-    assert_eq!(output.geometry.measured_aabb_mm, [0.0, 0.0, 0.0, 180.0, 80.0, 204.0]);
+    assert_eq!(
+        output.geometry.measured_aabb_mm,
+        [0.0, 0.0, 0.0, 180.0, 80.0, 204.0]
+    );
     assert_eq!(output.geometry.minimum_measured_thickness_mm, 4.0);
     assert!((output.geometry.volume_mm3 - 1_449_600.0).abs() < 1e-6);
     assert_eq!(output.geometry.units, "millimeter");
@@ -45,7 +48,10 @@ fn canonical_180_by_80_by_204_mm_reference_is_closed_oriented_and_deterministic(
     let again = build_mesh(&grid, &request).unwrap();
     assert_eq!(output.mesh.vertices_mm, again.mesh.vertices_mm);
     assert_eq!(output.mesh.triangles, again.mesh.triangles);
-    assert_eq!(output.canonical_geometry_sha256, again.canonical_geometry_sha256);
+    assert_eq!(
+        output.canonical_geometry_sha256,
+        again.canonical_geometry_sha256
+    );
 }
 
 #[test]
@@ -57,7 +63,10 @@ fn flat_negative_terrain_is_a_solid_prism_with_explicit_base() {
     req.vertical_exaggeration = 1.0;
     rehash(&mut grid, &mut req);
     let o = build_mesh(&grid, &req).unwrap();
-    assert_eq!(o.geometry.measured_aabb_mm, [0.0, 0.0, 0.0, 180.0, 80.0, 3.0]);
+    assert_eq!(
+        o.geometry.measured_aabb_mm,
+        [0.0, 0.0, 0.0, 180.0, 80.0, 3.0]
+    );
     assert!((o.geometry.volume_mm3 - 43_200.0).abs() < 1e-6);
     assert_eq!(o.geometry.minimum_measured_thickness_mm, 3.0);
 }
@@ -81,7 +90,10 @@ fn bounded_node_aligned_clip_is_not_stretched() {
     let o = build_mesh(&grid, &req).unwrap();
     assert_eq!(o.geometry.vertices, 18);
     assert_eq!(o.geometry.triangles, 32);
-    assert_eq!(o.geometry.measured_aabb_mm, [0.0, 0.0, 0.0, 120.0, 80.0, 204.0]);
+    assert_eq!(
+        o.geometry.measured_aabb_mm,
+        [0.0, 0.0, 0.0, 120.0, 80.0, 204.0]
+    );
     assert_eq!(o.mesh.vertices_mm[0], [0.0, 80.0, 74.0]);
 }
 
@@ -107,16 +119,28 @@ fn print_configuration_errors_are_typed_and_fail_closed() {
     let (grid, req) = fixture();
     let mut bad = req.clone();
     bad.model_height_mm = 90.0;
-    assert_eq!(build_mesh(&grid, &bad).unwrap_err().code, "INVALID_DIMENSIONS");
+    assert_eq!(
+        build_mesh(&grid, &bad).unwrap_err().code,
+        "INVALID_DIMENSIONS"
+    );
     bad = req.clone();
     bad.clip_rect_meters[0] = 0.5;
-    assert_eq!(build_mesh(&grid, &bad).unwrap_err().code, "INVALID_DIMENSIONS");
+    assert_eq!(
+        build_mesh(&grid, &bad).unwrap_err().code,
+        "INVALID_DIMENSIONS"
+    );
     bad = req.clone();
     bad.elevation_zero_meters = 0.0;
-    assert_eq!(build_mesh(&grid, &bad).unwrap_err().code, "INVALID_DIMENSIONS");
+    assert_eq!(
+        build_mesh(&grid, &bad).unwrap_err().code,
+        "INVALID_DIMENSIONS"
+    );
     bad = req.clone();
     bad.minimum_feature_thickness_mm = 5.0;
-    assert_eq!(build_mesh(&grid, &bad).unwrap_err().code, "INVALID_GEOMETRY");
+    assert_eq!(
+        build_mesh(&grid, &bad).unwrap_err().code,
+        "INVALID_GEOMETRY"
+    );
     bad = req.clone();
     bad.selection_id = "sel-wrong".into();
     assert_eq!(build_mesh(&grid, &bad).unwrap_err().code, "HASH_MISMATCH");
@@ -125,7 +149,10 @@ fn print_configuration_errors_are_typed_and_fail_closed() {
     assert_eq!(build_mesh(&grid, &bad).unwrap_err().code, "INVALID_REQUEST");
     let mut tampered = grid;
     tampered.samples_meters.as_mut().unwrap()[1] = Some(1_000.0);
-    assert_eq!(build_mesh(&tampered, &req).unwrap_err().code, "INVALID_GRID_HASH");
+    assert_eq!(
+        build_mesh(&tampered, &req).unwrap_err().code,
+        "INVALID_GRID_HASH"
+    );
 }
 
 #[test]
