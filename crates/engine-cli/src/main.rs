@@ -5,10 +5,8 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     match env::args().nth(1).as_deref() {
         Some("--health") => {
-            println!(
-                "{}",
-                r#"{"apiVersion":"1.0.0","status":"ok","capabilities":[]}"#
-            );
+            let message = r#"{"apiVersion":"1.0.0","status":"ok","capabilities":[]}"#;
+            println!("{message}");
             ExitCode::SUCCESS
         }
         Some("--version") => {
@@ -16,10 +14,8 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         _ => {
-            eprintln!(
-                "{}",
-                r#"{"apiVersion":"1.0.0","reasonCode":"UNSUPPORTED_OPERATION","message":"Initial engine accepts --health and --version"}"#
-            );
+            let message = r#"{"apiVersion":"1.0.0","reasonCode":"UNSUPPORTED_OPERATION","message":"G0 stub only"}"#;
+            eprintln!("{message}");
             ExitCode::from(2)
         }
     }
