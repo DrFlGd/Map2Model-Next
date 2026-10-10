@@ -1,27 +1,44 @@
-# A3-02 — 3MF export gate (writer pending lead approval)
+# A3-02 — Real deterministic 3MF Core 1.4.0 exporter
 
-**Status: writer-independent preflight implemented; NO 3MF package is created yet.** This phase follows accepted/merged A3-01 #5 / PR #13. Issue: #6. No frozen G0 V1 contracts are modified.
+**Status:** Actual ZIP-based 3MF writing, strict internal OPC/geometry/provenance readback, and no-clobber atomic publication are implemented in the **draft PR #15**. **Official 3MF Consortium XSD conformance and the two agreed slicer-open tests remain external acceptance gates, not yet claimed.** Issue #6; depends on A3-01 merged #13.
 
-Entry point: `prepare_export(&BuildOutput, &ElevationGridV1, &TerrainBuildRequestV1, &TerrainSourceManifestV1)`. It verifies all contract ingress, license/attribution/source identities, datum compatibility, genuine mesh topology/report, physical dimensions and canonical digest. It returns **UTF-8 deterministic JSON provenance bytes** for `/Metadata/map2model.provenance.json` and SHA-256 over those exact bytes. This **is not** a `MeshAnd3mfResultV1` or a publishable 3MF. It cannot claim a slicer/conformance success.
+## Writer decision, third-party licensing and review
 
-## Writer and validation decision requested from lead
+- **Writer/package:** pure Rust `zip = 2.4.2`, MIT license; default features disabled, ZIP `Stored` for cross-platform deterministic byte output and no compressor dependencies.
+- **Independent XML parsing:** `roxmltree = 0.20.0`, MIT OR Apache-2.0. DTD/entity expansion disabled by default, namespace-aware OPC and Core XML validation. ZIP and XML readback is implemented separately from construction; it is **not** a substitute for independent official conformance.
+- `serde_json = 1.0.145` (MIT/Apache-2.0) and `sha2 = 0.10.9` (MIT/Apache-2.0), already in project use. Pinned exact versions in Cargo.toml; review transitive package notices and Cargo.lock before redistributing binaries.
+- **Lead approval needed:** explicit acceptance of this approach instead of previously proposed native BSD-2-Clause lib3mf 2.5.0, plus official Core validator and **PrusaSlicer + Bambu Studio** pinned Windows import/slice checks. Decision request: [issue #6](https://github.com/DrFlGd/Map2Model-Next/issues/6#issuecomment-6103049410).
 
-- Preferred writer: 3MF Consortium **lib3mf 2.5.0**, BSD-2-Clause, with an audited C ABI binding, pinned redistributable SDK builds and NOTICE review for libzip (1.10.1), zlib (1.3.1), cpp-base64 (2.rc.08) and fast-float (6.0.0).
-- Core **1.4.0**, `millimeter` and an untransformed single mesh object at `/3D/3dmodel.model`. XML+OPC custom part `/Metadata/map2model.provenance.json` requires root `MustPreserve` relationship, correct content type and deterministic bytes. **Verify lib3mf attachment support before approval**; do not silently post-edit a completed ZIP into invalid OPC.
-- Writer shall reopen the package with an independent, fresh lib3mf reader in strict mode, inspect the actual triangle mesh and mm bounds, validate OPC content-types and relationships, and compare embedded provenance bytes to preflight. Independently compute `artifact.sha256` over the final 3MF ZIP, separate from the existing `canonical_geometry_sha256` over quantized ordered triangles.
-- Official 3MF Consortium Core 1.4.0 conformance **test_suites v2.4.1** (suite 3 or suite 9 Core), plus Windows **PrusaSlicer and Bambu Studio** opening/slice checks with versions, screenshot/logs and no repairs.
-- 3MF writer/staging integration must be native-side, bounded, path-safe, cancel-aware and atomic; only a successful independently verified export may publish a `MeshAnd3mfResultV1`. Cancelled/failed jobs leave no success artifact.
+## Real output and deterministic provenance
 
-Lead decision remains outstanding at [issue #6](https://github.com/DrFlGd/Map2Model-Next/issues/6#issuecomment-6101611213). No lib3mf SDK or ZIP writer is bundled in this commit.
+`export_3mf(&BuildOutput,&ElevationGridV1,&TerrainBuildRequestV1,&TerrainSourceManifestV1) -> Result<Exported3mf,ExportError>`:
+1. `prepare_export` enforces original frozen V1 grid/request/source, verifies license/attribution, canonical mesh SHA, physical dimensions/print thickness, mm units, single closed and oriented mesh.
+2. Create **real 3MF ZIP** with four OPC parts, in deterministic order with stable timestamp and Stored compression:
+   - `[Content_Types].xml` (model, JSON, relationship MIME entries)
+   - `_rels/.rels` (root StartPart and required MustPreserve for the custom JSON)
+   - `3D/3dmodel.model` (Core 1.4.0 namespace, single mesh object, 3-axis mm vertices and outward-oriented triangles, build item; vendor-qualified source license, attribution, engine version and mesh/provenance hashes)
+   - `Metadata/map2model.provenance.json` (deterministic UTF-8 source/license/datum/engine/geometry)
+3. Independently reopen ZIP with `ZipArchive` and parse OPC and Core XML with `roxmltree`. Reject missing/extra parts, invalid types/relationships, non-mm units, malformed/out-of-range indices, invalid geometry, canonical SHA disagreement, missing/wrong provenance bytes, bounding mismatch, or other bad shapes.
+4. Return **actual bytes**, `package_sha256` of final ZIP, `provenance_sha256` over the embedded JSON, and `canonical_geometry_sha256` over the frozen, quantized V1 mesh representation. These are separate SHA domains; an archive can vary without changing the geometry identity.
 
-## Preflight guarantees and explicit boundaries
+`write_3mf_atomic(destination,&Exported3mf,|| cancelled)` is a native-side helper that first checks cancellation and the artifact digest, stages into the requested directory, `sync_all`s, rechecks cancellation, and publishes using atomic **hard-link no-clobber** then removes the staging name. On error/cancel the staging file is removed, and an existing destination is not overwritten. Directory must be native-authorized and support hard links; no raw UI paths are accepted. A cancellation arriving **after** the link is published is a final-job-IPC race; the native supervisor must define the commit/success boundary and enforce state transitions. This API does not invent a V1 successful export result or claim third-party conformance.
 
-- The mesh is checked against original signed grid/request and source manifest with `validate_build`, `validate_manifest` and `inspect_mesh`. It re-hashes the **actual** vertices/triangles using the frozen V1 canonical algorithm; it will not trust the result's reported hash. Hashes bind source and geometry separately.
-- Provenance includes selection/grid/source archive and manifest digests, actual source license/attribution, datum/CRS, selected clip, original engine/profile, actual measured dimensions and QA, and actual geometry hash. No circular provenance-hash field is embedded. JSON fields serialize deterministically with the pinned serde_json version.
-- **A manifest envelope is not proof of covered tiles.** This writer-neutral function does not make a Generation Ready claim. The caller must obtain native verified source index/coverage evidence before publishing a production export.
-- Export package SHA, Core conformance, slicer readback, signed artifact result, cancellation/job IPC and atomic filesystem publication are *not* yet implemented.
-- Synthetic fixture is original artificial Map2Model Next data (license identifier CC0-1.0 as declared in frozen manifest). No real geodata is included.
+## Reproduce a real slicer-importable candidate
 
-Testing after PR CI: `cargo test -p map2model-export`; `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets -- -D warnings`.
+```sh
+cargo run -p map2model-export --example synthetic_3mf -- ./synthetic-terrain.3mf
+cargo test -p map2model-export
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+```
 
-Reference specification: https://github.com/3MFConsortium/spec_core/blob/master/3MF%20Core%20Specification.md ; official test suites: https://github.com/3MFConsortium/test_suites ; writer: https://github.com/3MFConsortium/lib3mf .
+The example reads the unmodified frozen V1 synthetic grid/build/manifest. Expected **24 vertices, 44 oriented triangles**, AABB **[0,0,0,180,80,204] mm**, minimum 4mm base thickness and frozen canonical geometry SHA `dd8c9fa5c7734534d176ef02ee38299b5911343d7112933298dd6dfc79185db9`. It writes a genuine `.3mf` file; run against a **nonexistent filename** in an existing directory (no-clobber).
+
+`tests/actual_3mf.rs` performs ZIP/readback verification, verifies a 3MF's actual embedded licensing and provenance, checks byte-for-byte deterministic ZIP generation, deliberately corrupts OPC parts, vertex indices, unit and provenance, and verifies cancellation/atomic publish. Synthetic fixtures are original Map2Model Next artificial CC0-1.0 data; no proprietary or downloaded geodata.
+
+## Remaining external acceptance
+
+- Official 3MF Consortium Core **1.4.0 XSD/Conformance**: separately run authoritative validators against generated file and collect actual result/log; internal ZIP/XML checks are **not** an official conformance report.
+- Open and slice in **PrusaSlicer and Bambu Studio** at two lead-approved, version-pinned Windows versions; record open success/no repair, dimensions within ±0.05mm, expected appearance/base, screenshot/log, and resulting slice correctness.
+- Final native IPC, progress, atomic staged artifact generation with crash isolation and canonical `MeshAnd3mfResultV1` success **only after the lead-defined external validation gate**. No G3 pass claims yet.
+- Only node-aligned G1 rectangular clips; 100,000 clipped mesh-node cap inherited from A3-01. Only single-part terrain meshes; writer excludes textures, materials, arbitrary mesh soups and unknown extension namespaces.
