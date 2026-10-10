@@ -259,7 +259,8 @@ pub fn validate_result(v: &MeshAnd3mfResultV1) -> Result<(), String> {
 /// G0 output acceptance must bind output to its actual build request.
 /// Runtime artifact bytes and model conformance are verified by A3-02.
 pub fn validate_result_against_request(
-    result: &MeshAnd3mfResultV1, request: &TerrainBuildRequestV1,
+    result: &MeshAnd3mfResultV1,
+    request: &TerrainBuildRequestV1,
     grid: Option<&ElevationGridV1>,
 ) -> Result<(), String> {
     validate_result(result)?;
@@ -271,32 +272,41 @@ pub fn validate_result_against_request(
     if box_mm[0].abs() > tolerance
         || box_mm[1].abs() > tolerance
         || box_mm[2].abs() > tolerance
-        || ((box_mm[3]-box_mm[0])-request.model_width_mm).abs() > tolerance
-        || ((box_mm[4]-box_mm[1])-request.model_height_mm).abs() > tolerance
+        || ((box_mm[3] - box_mm[0]) - request.model_width_mm).abs() > tolerance
+        || ((box_mm[4] - box_mm[1]) - request.model_height_mm).abs() > tolerance
     {
         return Err("INVALID_DIMENSIONS: measured XY bounds differ from build".into());
     }
     if !finite(result.geometry.minimum_measured_thickness_mm)
         || result.geometry.minimum_measured_thickness_mm + tolerance
-            < request.base_thickness_mm.max(request.minimum_feature_thickness_mm)
+            < request
+                .base_thickness_mm
+                .max(request.minimum_feature_thickness_mm)
     {
         return Err("INVALID_GEOMETRY: insufficient measured thickness".into());
     }
     if let Some(g) = grid {
-        validate_build(request,g)?;
-        let [x0,y0,x1,y1] = request.clip_rect_meters;
-        let scale = request.model_width_mm/(x1-x0);
+        validate_build(request, g)?;
+        let [x0, y0, x1, y1] = request.clip_rect_meters;
+        let scale = request.model_width_mm / (x1 - x0);
         let mut max_z = f64::NEG_INFINITY;
-        let values = g.samples_meters.as_ref().ok_or("DATA_MISSING: grid unresolved")?;
-        for (i,sample) in values.iter().enumerate(){
-            let gx=g.min_east_meters+(i%g.width) as f64*g.dx_meters;
-            let gy=g.max_north_meters-(i/g.width) as f64*g.dy_meters;
-            if gx<x0-1e-9||gx>x1+1e-9||gy<y0-1e-9||gy>y1+1e-9 { continue; }
-            let z=sample.ok_or("DATA_MISSING: clipped sample absent")?;
-            max_z=max_z.max(request.base_thickness_mm
-              +(z-request.elevation_zero_meters)*scale*request.vertical_exaggeration);
+        let values = g
+            .samples_meters
+            .as_ref()
+            .ok_or("DATA_MISSING: grid unresolved")?;
+        for (i, sample) in values.iter().enumerate() {
+            let gx = g.min_east_meters + (i % g.width) as f64 * g.dx_meters;
+            let gy = g.max_north_meters - (i / g.width) as f64 * g.dy_meters;
+            if gx < x0 - 1e-9 || gx > x1 + 1e-9 || gy < y0 - 1e-9 || gy > y1 + 1e-9 {
+                continue;
+            }
+            let z = sample.ok_or("DATA_MISSING: clipped sample absent")?;
+            max_z = max_z.max(
+                request.base_thickness_mm
+                    + (z - request.elevation_zero_meters) * scale * request.vertical_exaggeration,
+            );
         }
-        if !finite(max_z)||(box_mm[5]-max_z).abs()>tolerance {
+        if !finite(max_z) || (box_mm[5] - max_z).abs() > tolerance {
             return Err("INVALID_DIMENSIONS: measured Z maximum differs from terrain".into());
         }
     }
@@ -379,32 +389,38 @@ mod additional_contract_tests {
     fn reject_cross_selection_and_unlinked_export_result() {
         let grid: ElevationGridV1 = serde_json::from_str(include_str!(
             "../../../tests/fixtures/contracts/v1/ElevationGridV1.valid.json"
-        )).unwrap();
+        ))
+        .unwrap();
         let req: TerrainBuildRequestV1 = serde_json::from_str(include_str!(
             "../../../tests/fixtures/contracts/v1/TerrainBuildRequestV1.valid.json"
-        )).unwrap();
+        ))
+        .unwrap();
         let result: MeshAnd3mfResultV1 = serde_json::from_str(include_str!(
             "../../../tests/fixtures/contracts/v1/MeshAnd3mfResultV1.valid.json"
-        )).unwrap();
+        ))
+        .unwrap();
         assert!(validate_result_against_request(&result, &req, Some(&grid)).is_ok());
         let mut wrong = req.clone();
         wrong.selection_id = "sel-another-selection".into();
-        assert!(validate_build(&wrong,&grid).unwrap_err().starts_with("HASH_MISMATCH"));
+        assert!(validate_build(&wrong, &grid)
+            .unwrap_err()
+            .starts_with("HASH_MISMATCH"));
         let mut result_bad = result.clone();
         result_bad.artifact.export_token = "m2m-export:other".into();
-        assert!(validate_result_against_request(&result_bad,&req,None).is_err());
+        assert!(validate_result_against_request(&result_bad, &req, None).is_err());
         let mut thickness_bad = result.clone();
         thickness_bad.geometry.minimum_measured_thickness_mm = 1.0;
-        assert!(validate_result_against_request(&thickness_bad,&req,None).is_err());
+        assert!(validate_result_against_request(&thickness_bad, &req, None).is_err());
         let mut xy_bad = result;
-        xy_bad.geometry.measured_aabb_mm = [0.0,0.0,0.0,10.0,20.0,30.0];
-        assert!(validate_result_against_request(&xy_bad,&req,None).is_err());
+        xy_bad.geometry.measured_aabb_mm = [0.0, 0.0, 0.0, 10.0, 20.0, 30.0];
+        assert!(validate_result_against_request(&xy_bad, &req, None).is_err());
     }
     #[test]
     fn native_ingress_does_not_allow_canonical_hash_to_bypass_no_data_policy() {
         let mut sel: SelectionV1 = serde_json::from_str(include_str!(
             "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
-        )).unwrap();
+        ))
+        .unwrap();
         sel.terrain_profile.no_data_policy = "fill".into();
         sel.selection_id = format!("sel-{}", &canonical::selection_digest(&sel).unwrap()[..32]);
         assert!(validate_selection(&sel).is_err());
@@ -413,8 +429,9 @@ mod additional_contract_tests {
         assert!(validate_selection(&sel).is_err());
         let mut grid: ElevationGridV1 = serde_json::from_str(include_str!(
             "../../../tests/fixtures/contracts/v1/ElevationGridV1.valid.json"
-        )).unwrap();
-        grid.anchor_wgs84 = [181.0,0.0];
+        ))
+        .unwrap();
+        grid.anchor_wgs84 = [181.0, 0.0];
         assert!(validate_grid(&grid).unwrap_err().starts_with("INVALID_CRS"));
     }
 }
