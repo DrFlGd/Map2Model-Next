@@ -855,6 +855,169 @@ mod tests {
         out.extend(WEBP);
         out
     }
+
+    fn encoded_varint(mut n: u64, out: &mut Vec<u8>) {
+        while n >= 128 {
+            out.push((n as u8 & 127) | 128);
+            n >>= 7;
+        }
+        out.push(n as u8);
+    }
+    fn synthetic_directory(entries: &[(u64, u64, u64, u64)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        encoded_varint(entries.len() as u64, &mut out);
+        let mut previous_id = 0;
+        for &(id, _, _, _) in entries {
+            encoded_varint(id - previous_id, &mut out);
+            previous_id = id;
+        }
+        for &(_, run, _, _) in entries { encoded_varint(run, &mut out); }
+        for &(_, _, len, _) in entries { encoded_varint(len, &mut out); }
+        let mut last_end = None;
+        for &(_, _, len, offset) in entries {
+            let wire = if last_end == Some(offset) { 0 } else { offset + 1 };
+            encoded_varint(wire, &mut out);
+            last_end = Some(offset + len);
+        }
+        out
+    }
+    fn zipped(bytes: &[u8]) -> Vec<u8> {
+        use flate2::write::GzEncoder;
+        let mut writer = GzEncoder::new(Vec::new(), flate2::Compression::default());
+        writer.write_all(bytes).unwrap();
+        writer.finish().unwrap()
+    }
+    /// Two WebP tile payloads under a one-level leaf: gzip is actually applied
+    /// to root, leaf, metadata, and each individual WebP tile.
+    fn leaf_gzip_fixture(parent_start: u64, extra_root: bool) -> Vec<u8> {
+        let tile = zipped(WEBP);
+        let tile2_offset = tile.len() as u64;
+        let tile_entries = [(1, 1, tile.len() as u64, 0),
+            (2, 1, tile.len() as u64, tile2_offset)];
+        let leaf = zipped(&synthetic_directory(&tile_entries));
+        let roots = if extra_root {
+            // Second root starts at ID2: child ID2 in first leaf is unreachable.
+            synthetic_directory(&[(parent_start, 0, leaf.len() as u64, 0),
+                (2, 1, tile.len() as u64, tile2_offset)])
+        } else {
+            synthetic_directory(&[(parent_start, 0, leaf.len() as u64, 0)])
+        };
+        let root = zipped(&roots);
+        let meta = zipped(br#"{"encoding":"terrarium","attribution":"Synthetic fixture"}"#);
+        let root_start = HEADER_BYTES as u64;
+        let meta_start = root_start + root.len() as u64;
+        let leaf_start = meta_start + meta.len() as u64;
+        let tile_start = leaf_start + leaf.len() as u64;
+        let mut out = vec![0; HEADER_BYTES];
+        out[..7].copy_from_slice(b"PMTiles");
+        out[7] = 3;
+        put_u64(&mut out, 8, root_start);
+        put_u64(&mut out, 16, root.len() as u64);
+        put_u64(&mut out, 24, meta_start);
+        put_u64(&mut out, 32, meta.len() as u64);
+        put_u64(&mut out, 40, leaf_start);
+        put_u64(&mut out, 48, leaf.len() as u64);
+        put_u64(&mut out, 56, tile_start);
+        put_u64(&mut out, 64, tile.len() as u64 * 2);
+        put_u64(&mut out, 72, 2);
+        put_u64(&mut out, 80, 2);
+        put_u64(&mut out, 88, 2);
+        out[96] = 1; out[97] = 2; out[98] = 2; out[99] = 4;
+        out[100] = 1; out[101] = 1;
+        put_i32(&mut out, 102, -840900000);
+        put_i32(&mut out, 106, 397400000);
+        put_i32(&mut out, 110, -840800000);
+        put_i32(&mut out, 114, 397500000);
+        out.extend(root); out.extend(meta); out.extend(leaf);
+        out.extend(tile.clone()); out.extend(tile);
+        out
+    }
+    #[test]
+    fn gzip_leaf_fixture_is_reachable_and_parent_boundaries_are_enforced() {
+        let valid = leaf_gzip_fixture(1, false);
+        let inspected = inspect(&valid).unwrap();
+        assert_eq!(inspected.tiles.len(), 2);
+        assert!(inspected.tiles.contains_key(&tile_id(1, 0, 0).unwrap()));
+        assert!(inspected.tiles.contains_key(&tile_id(1, 0, 1).unwrap()));
+        assert!(inspect(&leaf_gzip_fixture(2, false)).unwrap_err().starts_with("INVALID_SOURCE"));
+        assert!(inspect(&leaf_gzip_fixture(1, true)).unwrap_err().starts_with("INVALID_SOURCE"));
+        let mut corrupt = valid.clone();
+        corrupt[HEADER_BYTES] ^= 0xff; // Deflate root no longer decodes to a directory.
+        assert!(inspect(&corrupt).is_err());
+        let root = temporary();
+        fs::create_dir_all(&root).unwrap();
+        let result = (|| -> Result<(), String> {
+            let path = root.join("compressed.pmtiles");
+            fs::write(&path, &valid).unwrap();
+            let source = import_local_pmtiles(&path, &root.join("reg"), &declaration())?;
+            assert_eq!(source.read_registered_tile(1, 0, 1)?, WEBP);
+            Ok(())
+        })();
+        let _ = fs::remove_dir_all(root);
+        result.unwrap();
+    }
+    #[test]
+    fn restart_hydrates_verified_bytes_checks_coverage_and_detects_missing_or_tampered_index() {
+        let root = temporary();
+        fs::create_dir_all(&root).unwrap();
+        let result = (|| -> Result<(), String> {
+            let path = root.join("input.pmtiles");
+            fs::write(&path, fixture()).unwrap();
+            let registry = root.join("registered");
+            let imported = import_local_pmtiles(&path, &registry, &declaration())?;
+            let manifest = imported.manifest.clone();
+            drop(imported); // Simulate process restart: no cached records.
+            let reopened = reopen_registered_pmtiles(&registry, manifest.clone())?;
+            let selection: SelectionV1 = serde_json::from_str(include_str!(
+                "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
+            )).unwrap();
+            assert_eq!(reopened.verify_selection_coverage(&selection, 1)?, 1);
+            assert!(reopened.verify_selection_coverage(&selection, 2).is_err());
+            assert!(reopened.verify_required_tiles(&[(1, 1, 0)]).is_err());
+            assert_eq!(reopened.read_registered_tile(1, 0, 0)?, WEBP);
+            let idx = registry.join("indices")
+                .join(format!("{}.idx", manifest.coverage_index_sha256.as_ref().unwrap()));
+            fs::remove_file(&idx).map_err(|_| "INVALID_SOURCE: cannot remove synthetic index")?;
+            assert!(reopen_registered_pmtiles(&registry, manifest.clone()).is_err());
+            assert!(reopened.verify_required_tiles(&[(1, 0, 0)]).is_err());
+            let rebuilt = import_local_pmtiles(&path, &registry, &declaration())?;
+            assert_eq!(rebuilt.manifest.manifest_sha256, manifest.manifest_sha256);
+            Ok(())
+        })();
+        let _ = fs::remove_dir_all(root);
+        result.unwrap();
+    }
+    #[test]
+    fn registration_handles_parallel_imports_and_abandoned_exclusive_stage_files() {
+        let root = temporary();
+        fs::create_dir_all(&root).unwrap();
+        let result = (|| -> Result<(), String> {
+            let path = root.join("input.pmtiles");
+            fs::write(&path, fixture()).unwrap();
+            let registry = root.join("library");
+            // A crashed prior import cannot reserve a known staging slot forever.
+            fs::create_dir_all(registry.join("assets")).unwrap();
+            let crashed = registry.join("assets").join(".stale.stage-previous");
+            fs::write(&crashed, b"partial").unwrap();
+            let mut workers = Vec::new();
+            for _ in 0..5 {
+                let src = path.clone();
+                let dest = registry.clone();
+                workers.push(std::thread::spawn(move || {
+                    import_local_pmtiles(&src, &dest, &declaration())
+                        .map(|imported| imported.manifest.manifest_sha256)
+                }));
+            }
+            let hashes: Vec<String> = workers.into_iter()
+                .map(|thread| thread.join().unwrap().unwrap()).collect();
+            assert!(hashes.iter().all(|hash| hash == &hashes[0]));
+            assert_eq!(fs::read(crashed).unwrap(), b"partial");
+            Ok(())
+        })();
+        let _ = fs::remove_dir_all(root);
+        result.unwrap();
+    }
+
     fn declaration() -> SourceDeclaration {
         SourceDeclaration {
             source_name: "Synthetic Mapterhorn-format".into(),
