@@ -26,3 +26,12 @@ Run: cargo test -p map2model-data. Workspace CI exercises crate tests on Ubuntu/
 Negative tests include bad magic/version, unsupported tile type, unsafe offsets, directory corruption, missing tile, unknown datum, checksum failure and registered archive mutation. Follow-up needed for full A2-01 G1 acceptance: a legally obtained version-pinned actual Mapterhorn subset; real source datum and region permissions; gzip/leaf fixture coverage; Windows file-system/read-only smoke; and native integration.
 
 Ownership is Agent 2 in crates/data. The root Cargo.toml workspace-member addition is expressly submitted for lead review so the existing CI actually runs data tests.
+
+
+## Follow-up to lead review (PR #14)
+
+- The Rust API now exposes `reopen_registered_pmtiles(registry_root, saved_manifest)`, which verifies the V1 manifest, exact immutable archive hash and byte count, scans the PMTiles directories again, and independently authenticates the registered index bytes and its digest. No retained in-memory index is needed to resume after restarting Windows.
+- `verify_required_tiles` revalidates the disk index on each lookup. `verify_selection_coverage(selection, zoom)` checks the frozen V1 geographic selection, archive envelope, requested zoom and every intersecting XYZ tile (bounded to 4,096 required tiles); a success is an actual index lookup, never manifest-only readiness. Engine/IPC integration is still not implemented.
+- One-level leaf directories are only accepted when the first child tile ID matches its root parent and each child's run is before the next root key. Synthetic gzip fixture exercises independently gzip-compressed root, metadata, leaf and tile bytes; negative leaf-parent/overlap and malformed gzip cases fail closed.
+- Native asset registration uses 16 bytes of OS entropy for an exclusively created random staging filename, atomic hard-link publication, checksum verification and readonly final path. Crash-leftover and concurrent import tests ensure no PID-based stage collisions. Bounded pre/post metadata and handle reads avoid unbounded memory growth if a file changes during import. Native registry root must be a permissioned app-controlled path.
+- No implementation can independently assert source-region rights or vertical datum from the generic PMTiles header. A lawful, release-pinned real Mapterhorn example with documented rights, source datum and native resolution is required before acceptance; 1×1 WebP fixture is only a framing test, not real Terrarium elevation.
