@@ -1,0 +1,38 @@
+name: G0 foundation and contract checks
+
+on:
+  push:
+    branches: [main, 'agent/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Validate Node foundation and schema fixtures
+        run: npm run ci
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.90.0'
+          components: rustfmt, clippy
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Check Rust lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run Rust unit tests
+        run: cargo test --workspace
+      - name: Check engine health stub
+        run: cargo run --quiet --bin map2model-engine -- --health

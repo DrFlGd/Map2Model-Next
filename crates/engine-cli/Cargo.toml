@@ -1,0 +1,9 @@
+[package]
+name = "map2model-engine-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "map2model-engine"
+path = "src/main.rs"
