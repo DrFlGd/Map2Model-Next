@@ -1134,7 +1134,7 @@ mod tests {
     fn registration_handles_parallel_imports_and_abandoned_exclusive_stage_files() {
         let root = temporary();
         fs::create_dir_all(&root).unwrap();
-        let result = (|| -> Result<(), String> {
+        let result = {
             let path = root.join("input.pmtiles");
             fs::write(&path, fixture()).unwrap();
             let registry = root.join("library");
@@ -1157,8 +1157,8 @@ mod tests {
                 .collect();
             assert!(hashes.iter().all(|hash| hash == &hashes[0]));
             assert_eq!(fs::read(crashed).unwrap(), b"partial");
-            Ok(())
-        })();
+            Ok::<(), String>(())
+        };
         let _ = fs::remove_dir_all(root);
         result.unwrap();
     }
