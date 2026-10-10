@@ -19,9 +19,7 @@ fn read_u32(data: &[u8], position: &mut usize) -> Result<u32, String> {
     *position = end;
     Ok(u32::from_le_bytes(buf))
 }
-pub fn decode_grid_binary(
-    data: &[u8],
-) -> Result<DecodedGridPayload, String> {
+pub fn decode_grid_binary(data: &[u8]) -> Result<DecodedGridPayload, String> {
     if !data.starts_with(MAGIC) {
         return Err("INVALID_SOURCE: grid magic invalid".into());
     }
