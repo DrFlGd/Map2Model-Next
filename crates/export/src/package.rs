@@ -1,9 +1,7 @@
 //! Deterministic 3MF Core 1.4.0 single-mesh OPC writer with independent
 //! ZIP/XML readback. Slicer acceptance and the official Core test suite
 //! remain separate external release gates.
-use crate::{
-    prepare_export, ExportError, PreparedExport, MODEL_PART, PROVENANCE_PART,
-};
+use crate::{prepare_export, ExportError, PreparedExport, MODEL_PART, PROVENANCE_PART};
 use map2model_contracts::canonical::{canonical_mesh_digest, MeshTriangle};
 use map2model_contracts::{ElevationGridV1, TerrainBuildRequestV1, TerrainSourceManifestV1};
 use map2model_mesh::{BuildOutput, TerrainMesh};
