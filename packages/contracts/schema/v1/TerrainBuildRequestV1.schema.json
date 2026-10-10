@@ -42,7 +42,7 @@
     },
     "gridSha256": {
       "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
+      "pattern": "^[0-9a-f]{64}$"
     },
     "clipRectMeters": {
       "type": "array",
@@ -50,15 +50,18 @@
       "maxItems": 4,
       "items": {
         "type": "number"
-      }
+      },
+      "description": "Closed, grid-node aligned extent in local East/North meters; off-grid clipping rejected in G1."
     },
     "modelWidthMm": {
       "type": "number",
-      "exclusiveMinimum": 0
+      "exclusiveMinimum": 0,
+      "description": "Physical clipped terrain width in millimeters; must preserve XY aspect ratio with modelHeightMm."
     },
     "modelHeightMm": {
       "type": "number",
-      "exclusiveMinimum": 0
+      "exclusiveMinimum": 0,
+      "description": "Physical clipped terrain height in millimeters; no stretching allowed."
     },
     "baseThicknessMm": {
       "type": "number",
@@ -73,7 +76,8 @@
       "exclusiveMinimum": 0
     },
     "elevationZeroMeters": {
-      "type": "number"
+      "type": "number",
+      "description": "Explicit minimum Z reference, must be <= lowest valid clipped terrain elevation; print Z = baseThickness + (height - ref) * (modelWidthMm/clipWidthMeters) * verticalExaggeration."
     },
     "engineVersion": {
       "type": "string",

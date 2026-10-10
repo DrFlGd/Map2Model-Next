@@ -3,20 +3,20 @@
   "kind": "TerrainBuildRequestV1",
   "jobId": "job-synthetic-001",
   "correlationId": "corr-synthetic-001",
-  "selectionId": "sel-synthetic-001",
-  "gridSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "selectionId": "sel-9c13f5eaa44b01562cc6c26796669d44",
+  "gridSha256": "62ba45025ea9f6f4de60edcfa05136de7097c0a87ce77541322cb1a8bb83b7dd",
   "clipRectMeters": [
     0,
     0,
-    20,
-    20
+    36,
+    16
   ],
-  "modelWidthMm": 100,
-  "modelHeightMm": 100,
-  "baseThicknessMm": 3,
+  "modelWidthMm": 180,
+  "modelHeightMm": 80,
+  "baseThicknessMm": 4,
   "minimumFeatureThicknessMm": 1.2,
   "verticalExaggeration": 2,
-  "elevationZeroMeters": 0,
+  "elevationZeroMeters": -8,
   "engineVersion": "engine-proposed/0.0.1",
   "exportToken": "m2m-export:synthetic-001"
 }

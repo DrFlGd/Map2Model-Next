@@ -1,35 +1,75 @@
-# ADR-004 — V1 cross-agent data contracts (PROPOSED)
+# ADR-004 — Cross-agent V1 contracts and deterministic reference vectors
 
-**Task:** A1-02 / G0. **Status:** PROPOSED — NOT FROZEN. **Approval required:** Agent 2 and Agent 3; product owner G0 gate.
-**Normative source:** `packages/contracts/schema/v1/*.schema.json`. TS and Rust types implement these exact field names.
+**Status:** REVISION PROPOSED; NOT FROZEN. Agent 2 and Agent 3 requested changes on PR #11 at `b533328`. This document responds to both. `G0` remains **blocked** until both agents approve the revised head and the product owner authorizes freeze.
 
-## Contract set and ownership
-- C-01 `SelectionV1` (UI → geodata): non-wrapping WGS84 bbox `[west,south,east,north]`; Earth only for Phase 1.
-- C-02 `TerrainSourceManifestV1` (geodata → lead/mesh): source release, licenses, datum, native resolution and local opaque asset token.
-- C-03 `ElevationGridV1` (geodata → mesh): `width * height` row-major north-up sample array, `x = minEast + col*dx`, `y = maxNorth - row*dy`; validMask false means elevation null. Elevations in meters relative to declared datum.
-- C-04 `TerrainBuildRequestV1` (lead → mesh): grid identity and clip, print-space mm size and feature minimums, vertical reference, deterministic engine version and export token.
-- C-05 `MeshAnd3mfResultV1` (mesh → lead): mm geometry QA, 3MF artifact token, checksums, warnings and provenance.
-- C-06 `JobStateV1` (all → UI): stable job/correlation IDs, progress 0–1 and structured reason codes.
+## Normative foundation
 
-## Security and identity invariants
-- Renderer sends asset/export **tokens**, never arbitrary filesystem paths, HTTPS URLs or process commands.
-- SchemaVersion is `1.0.0`; `kind` must match the contract.
-- All source files use SHA-256; hex lower case.
-- Non-finite numbers are prohibited. Incomplete terrain must not masquerade as valid by interpolating no-data.
-- JSON fixtures in `tests/fixtures/contracts/v1/` are *schema-only synthetic examples*. Their strings of repeated hex digits are placeholders, not checksums of any real data, and the apparent mesh and 3MF result is **not evidence that an export exists**.
-- Strict JSON schema rejects unknown fields. Semantic constraints (bbox ordering; `width * height` sample/mask count; missing-elevation/null consistency; request bounds; terminal job codes) are checked separately.
+The six `packages/contracts/schema/v1/*.schema.json` schemas are JSON-wire contracts. TypeScript and Rust mirrors must pass the **same** positive/negative fixtures. `packages/contracts/src/validation.mjs` and `canonical.mjs` provide executable reference validation and canonical encoding. Production Rust and TypeScript consumers must enforce these invariants at ingress, not simply deserialize untrusted objects. Data and exported artifacts remain local; neither agent should copy Mini Skyline's site bundles.
 
-## Requested Agent 2 review
-Confirm projection transform choice and error tolerance; allowed `verticalDatumId` and `nativeGroundSampleMeters` representation; mask/null no-data policy; approved source token format and dataset manifest coverage.
+**Numerics:** IEEE 754 binary64 for projected coordinates and elevations, all finite. Normalize negative zero to positive zero before hashing. No NaN, infinities, interpolated missing heights or geometry outputs marked valid without passing required checks.
 
-## Requested Agent 3 review
-Confirm mesh/result validation counters, Z baseline and vertical exaggeration meaning, canonical grid and mesh hash recipe, 3MF conformance states, base/min-thickness and cancellation/event shapes.
+### C-01 Selection / CRS
 
-## OPEN blocking design decisions
-1. **Canonical grid hash:** `gridSha256` exists but serialization/binary float precision is **not frozen**. Hash definitions require both engine owners to agree; fixtures currently use placeholders.
-2. **Projection:** `horizontalTransformId` and anchor are fields but EPSG/local tangent-plane algorithm, axis orientation tolerances and datum transforms require review.
-3. **Archive handles:** `m2m-asset:<sha256>` is a proposed opaque reference, not a URL or a file path; file authorization policy needs agreement.
-4. **IPC envelope:** JSON lines with request/event and correlation IDs is proposed, not a complete stable transport. Cancellation and max message size require consensus.
+Earth, WGS84 longitude/latitude, `bbox=[west,south,east,north]`, non-wrapping, strictly positive area, closed bounds. For G1 `|latitude| <= 80°`, each metric selection side <= 10,000 m, and at most 1,000,000 samples. No automatic dateline handling in G1; crossings are rejected. `selectionId = "sel-" + first 32 hex chars of selectionDigest` binds the exact bbox and terrain profile, not display names.
 
-## G0 sign-off
-Record Agent 2 GitHub acknowledgement, Agent 3 GitHub acknowledgement, approved contract commit SHA, exact schema and fixture hashes, tests, source/license policy status, and product owner acceptance. Until then contracts are `PROPOSED` and tasks A2-01/A3-01 remain blocked.
+**Chosen G1 transform candidate:** `WGS84-ENU-LINEARIZED-V1`, a first-order local East/North tangent approximation, **not** the unqualified EPSG:4326 CRS and **not** a geodesic-preserving global projection. Input anchor `[lambda0,phi0]` in WGS84 degrees (height 0 for the horizontal transformation). Let `a=6378137 m`, `f=1/298.257223563`, `e2=f*(2-f)`, `M=a*(1-e2)/(1-e2*sin(phi0)^2)^(3/2)`, `N=a/sqrt(1-e2*sin(phi0)^2)`, with latitudes in radians. Then `east=(lambda-lambda0)*pi/180*N*cos(phi0)`; `north=(phi-phi0)*pi/180*M`. Inverse divides by these respective constants, retaining the anchor. This approximation is limited to small areas; for broader projects a new versioned transform must replace it. Verify a WGS84 geodetic reference library before G0 final signoff.
+
+Reference: anchor `[-84.09,39.741]`, point `[-84.089,39.742]` projects to `[85.71560839369111,111.02965952283863]` m, tolerance 1e-6 m; roundtrip degrees within 1e-12. Grid node `(column,row)`: `east=minEast+column*dx`, `north=maxNorth-row*dy`. **Nodes include their outermost sample coordinates**, so spatial width/height are `(width-1)*dx` and `(height-1)*dy`, not `width*dx`. North-up means row 0 is most northerly.
+
+### C-02 Archive provenance, manifest and coverage
+
+`sourceArchiveSha256` hashes the **original archive bytes**. `localAssetToken="m2m-asset:"+sourceArchiveSha256` resolves only in the native sidecar's permissioned, read-only import registry; it is not a path, URL or renderer privilege.
+
+`manifestSha256` is distinct. It excludes its own field and uses the canonical manifest wire encoding described below. `ElevationGridV1.sourceManifestSha256` MUST equal it. Corrupt or absent data fails with `HASH_MISMATCH` or `DATA_MISSING`.
+
+`coverageBbox` is an approximate envelope, **not readiness proof**. `coverageStatus="envelope-only"` is never Generation Ready. `"verified-tile-index"` requires a checked, immutable Z/X/Y presence index stored by the native data engine under `m2m-index:<coverageIndexSha256>`. Readiness requires every required tile present and valid for that clip and source release; merely having a PMTiles header bbox or index digest is insufficient. Importer validates actual tile existence and requested source release, not downloaded tile zoom as a proxy for source accuracy.
+
+`nominalGroundSampleMeters` is a descriptive estimate only (not accuracy guarantee); `nativeResolutionSource` explains its provenance; `uncertaintyMeters` may be null. Actual per-tile quality belongs in the verified index. `verticalDatumStatus` is `known|unknown|unsupported`; only `known` can enter Generation Ready, and every source must carry `verticalDatumId`. Never silently convert MSL/ellipsoid/unknown datums. Region-specific attribution/license remain mandatory.
+
+### C-03 Elevation grid and hashes
+
+G1 grid: 2..4096 columns/rows, `width*height<=1,000,000` checked *before* allocation. A row-major north-up grid contains exact `width*height` pairs. A valid cell is `validMask=true, samplesMeters=finite f64`; invalid is `false,null`, with no sentinel zero. `storageMode="inline-fixture"` is for small test grids; practical production IPC uses `"local-binary-token"` with `gridDataToken="m2m-grid:<gridDataSha256>"` plus SHA-256 of the **uncompressed immutable grid payload**. The native sidecar verifies the full bytes before use. A 1 MiB JSON IPC control envelope **never** transports millions of inline floats. No raw untrusted disk path crosses the renderer; agent engines may use verified native file/memory-mapped handles.
+
+`gridSha256` is separate from transport-byte `gridDataSha256`. The canonical grid digest is computed over the *decoded* grid and metadata using algorithm below, **excluding `gridSha256` itself**. Producer must validate all data and compute digest before persisting; consumer must independently recompute it. Fallback to an inferred datum or padding the array is forbidden. `noDataPolicy="fail"` forbids triangles touching null samples.
+
+### Canonical binary encodings (SHA-256, V1)
+
+All digests SHA-256 lowercase hex over concatenated byte arrays. `str` = UTF-8 length prefixed with unsigned 32-bit **little-endian** length. `hex` = exactly 32 raw bytes decoded from 64 lowercase hex chars. `f64` = finite IEEE-754 **little-endian** 8 bytes, -0 normalized to +0. `u8/u32/u64/i64` = ordinary little-endian integer of that width. String fields encode **exact supplied UTF-8 bytes**; no locale formatting and no JSON canonicalization. No timestamps/random IDs in geometry digest; refuse non-finite values and signed overflow.
+
+- **Selection:** ASCII `M2M-SELECTION-1\0` + bbox 4×f64 (W,S,E,N) + sampleMeters f64 + noDataPolicy str + maxSamples u32. Reference SHA `9c13f5eaa44b01562cc6c26796669d44e25bd9ed593420861ef353065c9ae274`.
+- **Manifest:** ASCII `M2M-MANIFEST-1\0` + sourceName str + releaseId str + archiveId str + sourceArchiveSha256 hex + coverageBbox 4×f64 + horizontalCrs str + verticalDatumStatus str + verticalDatumId str + nominalGroundSampleMeters f64 + nativeResolutionSource str + uncertaintyMeters tagged [u8(0) for null, u8(1)+f64 otherwise] + coverageStatus str + coverageIndexSha256 tagged [u8(0) null / u8(1)+hex] + sourceBytes u64 + licenseIdentifier str + attribution str + decoderVersion str. Excludes self `manifestSha256` and derived `localAssetToken` (the latter must match the archive SHA). Reference SHA `08f6fe9aa91e6415b162fc7b7f42616c302da72bf5fb946a03620c6627e121f3`.
+- **Grid:** ASCII `M2M-GRID-1\0` + width u32 + height u32 + selectionId str + sourceManifestSha256 hex + horizontalTransformId str + verticalDatumId str + anchor lon f64 + anchor lat f64 + minEast f64 + maxNorth f64 + dx f64 + dy f64; then **each row-major sample**: u8(1)+finite elevation f64 when valid, or u8(0) only for false/null. Excludes itself, grid ID and transport token. Synthetic non-square signed ramp reference SHA `62ba45025ea9f6f4de60edcfa05136de7097c0a87ce77541322cb1a8bb83b7dd`; same ramp with one null cell reference SHA `8f9b1b045fa0f5c1d31da6f927a1da48c4e1e70d565763ecb37db5771aaff833`.
+- **Canonical geometry:** ASCII `M2M-MESH-1\0` + vertex count u32 + vertices in lexicographic order of quantized XY Z signed i64 at **1e-6 mm resolution** (each value `sign(x)*floor(abs(x)*1e6 + 0.5)`, half away from zero) + triangle count u32 + triangles sorted by UTF-8 partId then lexicographically by oriented vertex indices. Triangle indices are remapped to sorted vertices; orientation cannot be reversed, only cyclically rotated so smallest index comes first. Each triangle: partId str + 3×u32. Equal quantized vertices or degenerate indices are invalid. ZIP/3MF compression/timestamp is **not part** of this hash. Reference outward-oriented 10×20×30 mm box has SHA `19755deb6cdd855f7a5facb8067fbbdec6a7667378f22a9acda85c1854cfa9ac`. Cross-language tests required.
+
+For production, the binary grid-transport format must unambiguously encode widths, masks, and samples according to the above V1 grid sample sequence. `gridDataSha256` hashes **that entire transport file**; `gridSha256` hashes canonical content/metadata. Freeze explicit transport header and atomic registration in Agent 2's import PR, **before** high-volume transfers begin.
+
+### C-04 Printable terrain scaling
+
+`clipRectMeters=[minEast,minNorth,maxEast,maxNorth]` is a **closed** rectangle. G1 requires all four sides to coincide with grid **node coordinates** (within 1e-8 fractional grid steps) and include at least 2×2 nodes. Out-of-bounds or off-node rectangles fail `INVALID_DIMENSIONS`. Later versions may support interpolation via a new policy; G1 does not silently extrapolate. Missing samples inside the clip fail `DATA_MISSING`.
+
+Define `S=modelWidthMm/(maxEast-minEast)`, and require `S == modelHeightMm/(maxNorth-minNorth)` to relative 1e-9: no XY distortion. `x_mm=S*(x-minEast)`, `y_mm=S*(y-minNorth)`. `elevationZeroMeters` must be <= the minimum valid included elevation. `z_top_mm=baseThicknessMm + S*verticalExaggeration*(z_m-elevationZeroMeters)`. The flat bottom is z=0; sidewalls join at the sampled contour edge. This guarantees **minimum** base thickness >= `baseThicknessMm`, even for negative source elevations. Baseline above the terrain minimum is rejected, not silently shifted. G1 may have a larger base than minimum. All geometry is mm.
+
+Synthetic 4×3 grid extends 36m East ×16m North (dx=12m,dy=8m); output 180×80mm with S=5 mm/m, base=4mm, exaggeration=2, zero=-8m. Recorded heights -8, -5 and +12m yield top Z 4, 34 and 204mm respectively. With base bottom at 0, expected outer print bbox `[0,0,0,180,80,204]`.
+
+### C-05 Mesh QA and 3MF provenance
+
+`MeshAnd3mfResultV1` represents a **successful, validated** export only. It must report physical mm AABB, connected component and part counts, volume, closed/oriented manifold and degenerate counts, intersection check and validation diagnostics. Only validated mesh+package may receive a success artifact. Failure returns `JobStateV1.status="failed"` and **no export result**. No output publication for partial/cancelled jobs.
+
+G1 targets **3MF Core 1.4.0** with `unit="millimeter"`, standard right-handed coordinate convention and a model at `/3D/3dmodel.model`; attribution/provenance JSON at `/Metadata/map2model.provenance.json` containing manifest/hash, engine build/version, selected bounds, export profile, source licensing, warnings, and canonical geometry hash (but **not its own digest**). `provenanceSha256` is SHA-256 of exact embedded provenance bytes, generated deterministically with its own defined canonical encoding in A3-02. `artifact.sha256` covers the **final 3MF ZIP bytes** independently of geometry hash. Include conformance/validator ID/version and diagnostics. Agent 3 to validate whether embedded custom relationship/part packaging and Core 1.4.0 compatibility are supported by chosen lib3mf build; the dependency is BSD-2-Clause-licensed but packaging and transitive terms require separate review. Actual two-slicer checks belong to G3.
+
+References: https://github.com/3MFConsortium/spec_core/blob/master/3MF%20Core%20Specification.md and https://github.com/3MFConsortium/lib3mf .
+
+### C-06 Jobs, errors and cancellation
+
+Allowed state transitions: queued→running|cancel_requested|failed|cancelled; running→running|cancel_requested|succeeded|failed|cancelled; cancel_requested→cancel_requested|cancelled|failed. Terminal succeeded/failed/cancelled have **no** outbound transitions; progress [0,1] never decreases and succeeded requires 1.0, `phase="complete"`, `reasonCode=null`. Failed requires a typed non-null reason (not `CANCELLED`); cancelled requires `phase="cancel"`, `reasonCode="CANCELLED"`. Cancellation acknowledgement is `cancel_requested`, not an export. Terminal artifacts may only be committed by an atomic operation after success validation. On cancel or failure, remove staged files and preserve previous verified outputs. Details are safe structured `retryable`, capped missing tile IDs, invalid grid index, invalid mesh element index.
+
+CLI/IPC control messages remain <=1 MiB JSON lines; bulk grids travel via **native verified tokens**. The current G0 CLI is only a health/unsupported-op stub. The future sidecar must enforce maximum message length during **reading**, prevent arbitrary renderer paths, and define job cancellation/streaming messages before G1 integration.
+
+### Outstanding approvals / G0 decision
+
+- **Agent 2:** Confirm or amend local WGS84 linearized transform accuracy bound and datum policy, immutable index format and verified coverage, grid binary asset registration and hash/reference vectors.
+- **Agent 3:** Confirm or amend canonical mesh ordering/quantization and hash vector, closed-grid clipping and base Z formula, 3MF version/validator plan, result and job error details.
+- **Lead:** Implement reusable Rust validator / digest parity; ensure TS/Rust/JSON mirror alignment and CI with negative fixtures.
+- **Product owner:** Explicitly accept G0 frozen contract commit and source-policy limitations **after both reviewers sign off**. A2/A3 implementation must remain blocked until then.
+
+This ADR is a specific **revision proposal**, not an assertion that the two other agents have already approved these choices.

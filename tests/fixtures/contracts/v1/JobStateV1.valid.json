@@ -7,5 +7,11 @@
   "status": "queued",
   "progress01": 0,
   "reasonCode": null,
-  "message": "Synthetic integration job queued"
+  "message": "Synthetic integration job queued",
+  "details": {
+    "retryable": false,
+    "missingTiles": [],
+    "invalidSampleIndex": null,
+    "invalidMeshElementIndex": null
+  }
 }

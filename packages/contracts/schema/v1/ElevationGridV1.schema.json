@@ -12,8 +12,6 @@
     "sourceManifestSha256",
     "width",
     "height",
-    "samplesMeters",
-    "validMask",
     "minEastMeters",
     "maxNorthMeters",
     "dxMeters",
@@ -22,7 +20,10 @@
     "horizontalTransformId",
     "verticalDatumId",
     "storageConvention",
-    "gridSha256"
+    "gridSha256",
+    "storageMode",
+    "gridDataToken",
+    "gridDataSha256"
   ],
   "properties": {
     "schemaVersion": {
@@ -41,34 +42,40 @@
     },
     "sourceManifestSha256": {
       "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
+      "pattern": "^[0-9a-f]{64}$"
     },
     "width": {
       "type": "integer",
       "minimum": 2,
-      "maximum": 100000
+      "maximum": 4096
     },
     "height": {
       "type": "integer",
       "minimum": 2,
-      "maximum": 100000
+      "maximum": 4096
     },
     "samplesMeters": {
-      "type": "array",
-      "minItems": 4,
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": [
           "number",
           "null"
         ]
-      }
+      },
+      "maxItems": 4096
     },
     "validMask": {
-      "type": "array",
-      "minItems": 4,
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "boolean"
-      }
+      },
+      "maxItems": 4096
     },
     "minEastMeters": {
       "type": "number"
@@ -103,8 +110,7 @@
       "items": false
     },
     "horizontalTransformId": {
-      "type": "string",
-      "minLength": 1
+      "const": "WGS84-ENU-LINEARIZED-V1"
     },
     "verticalDatumId": {
       "type": "string",
@@ -116,6 +122,96 @@
     "gridSha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "storageMode": {
+      "enum": [
+        "inline-fixture",
+        "local-binary-token"
+      ]
+    },
+    "gridDataToken": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^m2m-grid:[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gridDataSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "storageMode": {
+            "const": "inline-fixture"
+          }
+        },
+        "required": [
+          "storageMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "gridDataToken": {
+            "type": "null"
+          },
+          "gridDataSha256": {
+            "type": "null"
+          },
+          "samplesMeters": {
+            "type": "array",
+            "minItems": 4
+          },
+          "validMask": {
+            "type": "array",
+            "minItems": 4
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "storageMode": {
+            "const": "local-binary-token"
+          }
+        },
+        "required": [
+          "storageMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "samplesMeters": {
+            "type": "null"
+          },
+          "validMask": {
+            "type": "null"
+          },
+          "gridDataToken": {
+            "type": "string",
+            "pattern": "^m2m-grid:[a-f0-9]{64}$"
+          },
+          "gridDataSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  ]
 }

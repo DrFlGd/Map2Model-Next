@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "kind": "SelectionV1",
-  "selectionId": "sel-synthetic-001",
+  "selectionId": "sel-9c13f5eaa44b01562cc6c26796669d44",
   "planet": "earth",
   "horizontalCrs": "EPSG:4326",
   "bbox": [
@@ -11,8 +11,8 @@
     39.741
   ],
   "terrainProfile": {
-    "targetGroundSampleMeters": 10,
+    "targetGroundSampleMeters": 12,
     "noDataPolicy": "fail",
-    "maxSamples": 9000
+    "maxSamples": 1000000
   }
 }

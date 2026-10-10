@@ -11,15 +11,21 @@
     "releaseId",
     "archiveId",
     "localAssetToken",
-    "sha256",
     "coverageBbox",
     "horizontalCrs",
     "verticalDatumId",
-    "nativeGroundSampleMeters",
     "sourceBytes",
     "licenseIdentifier",
     "attribution",
-    "decoderVersion"
+    "decoderVersion",
+    "sourceArchiveSha256",
+    "manifestSha256",
+    "coverageStatus",
+    "coverageIndexSha256",
+    "verticalDatumStatus",
+    "nominalGroundSampleMeters",
+    "nativeResolutionSource",
+    "uncertaintyMeters"
   ],
   "properties": {
     "schemaVersion": {
@@ -43,10 +49,6 @@
     "localAssetToken": {
       "type": "string",
       "pattern": "^m2m-asset:[a-f0-9]{64}$"
-    },
-    "sha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
     },
     "coverageBbox": {
       "type": "array",
@@ -84,10 +86,6 @@
       "type": "string",
       "minLength": 1
     },
-    "nativeGroundSampleMeters": {
-      "type": "number",
-      "exclusiveMinimum": 0
-    },
     "sourceBytes": {
       "type": "integer",
       "minimum": 1
@@ -103,6 +101,57 @@
     "decoderVersion": {
       "type": "string",
       "minLength": 1
+    },
+    "sourceArchiveSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "coverageStatus": {
+      "enum": [
+        "envelope-only",
+        "verified-tile-index"
+      ]
+    },
+    "coverageIndexSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verticalDatumStatus": {
+      "enum": [
+        "known",
+        "unknown",
+        "unsupported"
+      ]
+    },
+    "nominalGroundSampleMeters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "nativeResolutionSource": {
+      "type": "string",
+      "minLength": 1
+    },
+    "uncertaintyMeters": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   }
 }

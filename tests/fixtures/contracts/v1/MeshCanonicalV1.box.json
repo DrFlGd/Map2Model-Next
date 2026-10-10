@@ -1,0 +1,144 @@
+{
+  "description": "G0 synthetic closed box: 10×20×30 mm, outward oriented triangles; no real 3MF file is implied.",
+  "vertices": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      30
+    ],
+    [
+      0,
+      20,
+      0
+    ],
+    [
+      0,
+      20,
+      30
+    ],
+    [
+      10,
+      0,
+      0
+    ],
+    [
+      10,
+      0,
+      30
+    ],
+    [
+      10,
+      20,
+      0
+    ],
+    [
+      10,
+      20,
+      30
+    ]
+  ],
+  "triangles": [
+    {
+      "partId": "terrain",
+      "indices": [
+        0,
+        3,
+        2
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        0,
+        1,
+        3
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        4,
+        6,
+        7
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        4,
+        7,
+        5
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        0,
+        4,
+        5
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        0,
+        5,
+        1
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        2,
+        3,
+        7
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        2,
+        7,
+        6
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        0,
+        2,
+        6
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        0,
+        6,
+        4
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        1,
+        5,
+        7
+      ]
+    },
+    {
+      "partId": "terrain",
+      "indices": [
+        1,
+        7,
+        3
+      ]
+    }
+  ],
+  "canonicalGeometrySha256": "19755deb6cdd855f7a5facb8067fbbdec6a7667378f22a9acda85c1854cfa9ac"
+}

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import Ajv2020 from 'ajv/dist/2020.js';
+import {validateSelection,validateManifest,validateGrid,validateBuild,validateMeshResult,validateJobState} from '../packages/contracts/src/validation.mjs';
 
 const types=['SelectionV1','TerrainSourceManifestV1','ElevationGridV1',
   'TerrainBuildRequestV1','MeshAnd3mfResultV1','JobStateV1'];
@@ -14,29 +15,14 @@ const validators=new Map(types.map(name=>{
   return [name,ajv.compile(schema)];
 }));
 function semanticCheck(item){
-  switch(item.kind){
-    case 'SelectionV1':
-      return item.planet==='earth' && item.horizontalCrs==='EPSG:4326' &&
-        item.bbox[0]<item.bbox[2] && item.bbox[1]<item.bbox[3];
-    case 'TerrainSourceManifestV1':
-      return item.coverageBbox[0]<item.coverageBbox[2] &&
-        item.coverageBbox[1]<item.coverageBbox[3] &&
-        item.localAssetToken==='m2m-asset:'+item.sha256;
-    case 'ElevationGridV1':
-      return item.width*item.height===item.samplesMeters.length &&
-        item.validMask.length===item.samplesMeters.length &&
-        item.samplesMeters.every((v,i)=>item.validMask[i] ? typeof v==='number' && Number.isFinite(v) : v===null);
-    case 'TerrainBuildRequestV1':
-      return item.clipRectMeters[0]<item.clipRectMeters[2] &&
-        item.clipRectMeters[1]<item.clipRectMeters[3] &&
-        item.modelWidthMm>0 && item.modelHeightMm>0;
-    case 'MeshAnd3mfResultV1':
-      return !(item.geometry.closed && item.geometry.nonManifoldEdges!==0);
-    case 'JobStateV1':
-      return item.status!=='succeeded' || (item.phase==='complete'&&item.progress01===1&&item.reasonCode===null);
-    default:return false;
-  }
+ const validatorsByKind={
+  SelectionV1:validateSelection,TerrainSourceManifestV1:validateManifest,
+  ElevationGridV1:validateGrid,TerrainBuildRequestV1:validateBuild,
+  MeshAnd3mfResultV1:validateMeshResult,JobStateV1:validateJobState
+ };
+ return validatorsByKind[item.kind]?.(item).ok===true;
 }
+
 test('each canonical V1 fixture validates against Draft 2020-12 JSON Schema',()=>{
   for (const name of types) {
     const data=fixture(name);
@@ -70,7 +56,7 @@ test('synthetic grid convention is north-up in meters',()=>{
     north:grid.maxNorthMeters-row*grid.dyMeters,
     z:grid.samplesMeters[row*grid.width+col]
   });
-  assert.deepEqual(point(0,0),{east:0,north:20,z:0});
-  assert.deepEqual(point(1,1),{east:10,north:10,z:3});
-  assert.deepEqual(point(2,2),{east:20,north:0,z:0});
+  assert.deepEqual(point(0,0),{east:0,north:16,z:-5});
+  assert.deepEqual(point(1,1),{east:12,north:8,z:0});
+  assert.deepEqual(point(2,3),{east:36,north:0,z:12});
 });

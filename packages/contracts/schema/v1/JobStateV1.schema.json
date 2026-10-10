@@ -13,7 +13,8 @@
     "status",
     "progress01",
     "reasonCode",
-    "message"
+    "message",
+    "details"
   ],
   "properties": {
     "schemaVersion": {
@@ -38,13 +39,15 @@
         "mesh",
         "export",
         "verify",
-        "complete"
+        "complete",
+        "cancel"
       ]
     },
     "status": {
       "enum": [
         "queued",
         "running",
+        "cancel_requested",
         "succeeded",
         "failed",
         "cancelled"
@@ -74,13 +77,157 @@
             "EXPORT_FAILED",
             "CANCELLED",
             "UNSUPPORTED_OPERATION",
-            "INTERNAL_ERROR"
+            "INTERNAL_ERROR",
+            "INCOMPLETE_GRID",
+            "INVALID_GRID_HASH",
+            "INVALID_GEOMETRY",
+            "INVALID_DIMENSIONS",
+            "NONFINITE_ELEVATION"
           ]
         }
       ]
     },
     "message": {
       "type": "string"
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retryable",
+        "missingTiles",
+        "invalidSampleIndex",
+        "invalidMeshElementIndex"
+      ],
+      "properties": {
+        "retryable": {
+          "type": "boolean"
+        },
+        "missingTiles": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "invalidSampleIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invalidMeshElementIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "phase": {
+            "const": "complete"
+          },
+          "reasonCode": {
+            "type": "null"
+          },
+          "progress01": {
+            "const": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "failed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reasonCode": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "cancelled"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reasonCode": {
+            "const": "CANCELLED"
+          },
+          "phase": {
+            "const": "cancel"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "cancel_requested"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "phase": {
+            "enum": [
+              "import",
+              "decode",
+              "mesh",
+              "export",
+              "verify",
+              "cancel"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

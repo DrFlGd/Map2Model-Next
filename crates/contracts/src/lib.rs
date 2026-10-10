@@ -32,11 +32,17 @@ pub struct TerrainSourceManifestV1 {
     pub release_id: String,
     pub archive_id: String,
     pub local_asset_token: String,
-    pub sha256: String,
+    pub source_archive_sha256: String,
+    pub manifest_sha256: String,
+    pub coverage_status: String,
+    pub coverage_index_sha256: Option<String>,
+    pub vertical_datum_status: String,
     pub coverage_bbox: [f64; 4],
     pub horizontal_crs: String,
     pub vertical_datum_id: String,
-    pub native_ground_sample_meters: f64,
+    pub nominal_ground_sample_meters: f64,
+    pub native_resolution_source: String,
+    pub uncertainty_meters: Option<f64>,
     pub source_bytes: u64,
     pub license_identifier: String,
     pub attribution: String,
@@ -53,8 +59,11 @@ pub struct ElevationGridV1 {
     pub source_manifest_sha256: String,
     pub width: usize,
     pub height: usize,
-    pub samples_meters: Vec<Option<f64>>,
-    pub valid_mask: Vec<bool>,
+    pub samples_meters: Option<Vec<Option<f64>>>,
+    pub valid_mask: Option<Vec<bool>>,
+    pub storage_mode: String,
+    pub grid_data_token: Option<String>,
+    pub grid_data_sha256: Option<String>,
     pub min_east_meters: f64,
     pub max_north_meters: f64,
     pub dx_meters: f64,
@@ -97,6 +106,35 @@ pub struct GeometryReportV1 {
     pub non_manifold_edges: usize,
     pub degenerate_triangles: usize,
     pub minimum_measured_thickness_mm: f64,
+    pub measured_aabb_mm: [f64;6],
+    pub component_count: usize,
+    pub part_count: usize,
+    pub volume_mm3: f64,
+    pub self_intersection_status: String,
+    pub validation: MeshValidationV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MeshDiagnosticV1 {
+    pub code: String,
+    pub message: String,
+    pub element_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MeshValidationV1 {
+    pub status: String,
+    pub checks: Vec<String>,
+    pub diagnostics: Vec<MeshDiagnosticV1>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExportDiagnosticV1 {
+    pub code: String,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +145,12 @@ pub struct ExportArtifactV1 {
     pub size_bytes: u64,
     pub format: String,
     pub conformance: String,
+    pub core_spec_version: String,
+    pub model_part: String,
+    pub provenance_part: String,
+    pub validator_id: String,
+    pub validator_version: String,
+    pub diagnostics: Vec<ExportDiagnosticV1>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +178,16 @@ pub struct JobStateV1 {
     pub progress01: f64,
     pub reason_code: Option<String>,
     pub message: String,
+    pub details: JobDetailsV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct JobDetailsV1 {
+    pub retryable: bool,
+    pub missing_tiles: Vec<String>,
+    pub invalid_sample_index: Option<usize>,
+    pub invalid_mesh_element_index: Option<usize>,
 }
 
 #[cfg(test)]
@@ -167,8 +221,8 @@ mod tests {
         assert_eq!(b.kind, "TerrainBuildRequestV1");
         assert_eq!(e.kind, "MeshAnd3mfResultV1");
         assert_eq!(j.kind, "JobStateV1");
-        assert_eq!(g.samples_meters.len(), g.width * g.height);
-        assert_eq!(g.valid_mask.len(), g.width * g.height);
+        assert_eq!(g.samples_meters.as_ref().unwrap().len(), g.width * g.height);
+        assert_eq!(g.valid_mask.as_ref().unwrap().len(), g.width * g.height);
         // JSON numeric spelling (10 versus 10.0) is not semantically significant.
         // Test actual typed serde roundtrips instead of comparing number formatting.
         let selection_roundtrip: SelectionV1 =

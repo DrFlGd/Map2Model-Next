@@ -4,22 +4,50 @@
   "jobId": "job-synthetic-001",
   "geometry": {
     "units": "millimeter",
-    "vertices": 18,
-    "triangles": 32,
+    "vertices": 8,
+    "triangles": 12,
     "closed": true,
     "oriented": true,
     "nonManifoldEdges": 0,
     "degenerateTriangles": 0,
-    "minimumMeasuredThicknessMm": 3
+    "minimumMeasuredThicknessMm": 4,
+    "measuredAabbMm": [
+      0,
+      0,
+      0,
+      10,
+      20,
+      30
+    ],
+    "componentCount": 1,
+    "partCount": 1,
+    "volumeMm3": 6000,
+    "selfIntersectionStatus": "passed",
+    "validation": {
+      "status": "passed",
+      "checks": [
+        "edge-incidence",
+        "oriented",
+        "nondegenerate",
+        "self-intersection"
+      ],
+      "diagnostics": []
+    }
   },
   "artifact": {
     "exportToken": "m2m-export:synthetic-001",
     "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     "sizeBytes": 1234,
     "format": "3mf",
-    "conformance": "passed"
+    "conformance": "passed",
+    "coreSpecVersion": "1.4.0",
+    "modelPart": "/3D/3dmodel.model",
+    "provenancePart": "/Metadata/map2model.provenance.json",
+    "validatorId": "synthetic-validation-vector",
+    "validatorVersion": "1",
+    "diagnostics": []
   },
-  "canonicalGeometrySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "canonicalGeometrySha256": "19755deb6cdd855f7a5facb8067fbbdec6a7667378f22a9acda85c1854cfa9ac",
   "provenanceSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "warnings": []
 }
