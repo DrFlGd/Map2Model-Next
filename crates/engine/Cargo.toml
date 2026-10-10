@@ -1,0 +1,11 @@
+[package]
+name = "map2model-mesh"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+map2model-contracts = { path = "../contracts" }
+
+[dev-dependencies]
+serde_json = "=1.0.145"

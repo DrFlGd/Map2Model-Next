@@ -1,0 +1,20 @@
+{
+  "fixture": "tests/fixtures/contracts/v1/ElevationGridV1.valid.json",
+  "buildRequest": "tests/fixtures/contracts/v1/TerrainBuildRequestV1.valid.json",
+  "description": "A3-01 computed synthetic mesh evidence (NOT a 3MF package)",
+  "partId": "terrain",
+  "meshLayout": "row-major north-up top nodes, row-major coincident XY bottom nodes at Z=0",
+  "vertices": 24,
+  "triangles": 44,
+  "measuredAabbMm": [0, 0, 0, 180, 80, 204],
+  "minimumMeasuredThicknessMm": 4,
+  "volumeMm3": 1449600,
+  "closed": true,
+  "oriented": true,
+  "nonManifoldEdges": 0,
+  "degenerateTriangles": 0,
+  "componentCount": 1,
+  "selfIntersectionCertification": "injective XY heightfield triangulation, positive top Z and flat bottom with simple perimeter",
+  "canonicalGeometrySha256": "dd8c9fa5c7734534d176ef02ee38299b5911343d7112933298dd6dfc79185db9",
+  "canonicalGeometryAlgorithm": "M2M-MESH-1"
+}
