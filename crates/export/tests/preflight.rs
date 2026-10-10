@@ -61,7 +61,7 @@ fn source_licensed_geometry_preflight_is_repeatable_and_contains_full_provenance
     );
     assert_eq!(
         value["measuredAabbMm"],
-        serde_json::json!([0, 0, 0, 180, 80, 204])
+        serde_json::json!([0.0, 0.0, 0.0, 180.0, 80.0, 204.0])
     );
     assert!(value.get("provenanceSha256").is_none());
     assert_eq!(value["coverageStatus"], "envelope-only"); // Never imply live tile coverage.
