@@ -4,8 +4,8 @@
   "jobId": "job-synthetic-001",
   "geometry": {
     "units": "millimeter",
-    "vertices": 8,
-    "triangles": 12,
+    "vertices": 32,
+    "triangles": 60,
     "closed": true,
     "oriented": true,
     "nonManifoldEdges": 0,
@@ -15,13 +15,13 @@
       0,
       0,
       0,
-      10,
-      20,
-      30
+      180,
+      80,
+      204
     ],
     "componentCount": 1,
     "partCount": 1,
-    "volumeMm3": 6000,
+    "volumeMm3": 380000,
     "selfIntersectionStatus": "passed",
     "validation": {
       "status": "passed",
@@ -47,7 +47,7 @@
     "validatorVersion": "1",
     "diagnostics": []
   },
-  "canonicalGeometrySha256": "19755deb6cdd855f7a5facb8067fbbdec6a7667378f22a9acda85c1854cfa9ac",
+  "canonicalGeometrySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
   "provenanceSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "warnings": []
 }

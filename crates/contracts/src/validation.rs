@@ -4,14 +4,18 @@ use crate::{
     TerrainSourceManifestV1,
 };
 const MAX_CELLS: usize = 1_000_000;
+const MAX_LATITUDE: f64 = 60.0;
+const MAX_EXTENT_METERS: f64 = 2_000.0;
 
 fn finite(x: f64) -> bool {
     x.is_finite()
 }
 pub fn project_wgs84(anchor: [f64; 2], target: [f64; 2]) -> Result<[f64; 2], String> {
     if !anchor.iter().chain(target.iter()).all(|v| finite(*v))
-        || anchor[1].abs() > 80.0
-        || target[1].abs() > 80.0
+        || anchor[1].abs() > MAX_LATITUDE
+        || target[1].abs() > MAX_LATITUDE
+        || anchor[0].abs() > 180.0
+        || target[0].abs() > 180.0
         || (target[0] - anchor[0]).abs() > 1.0
     {
         return Err("INVALID_CRS: outside linearized EN domain".into());
@@ -32,8 +36,8 @@ fn valid_bbox(b: [f64; 4]) -> bool {
     b.iter().all(|x| finite(*x))
         && b[0] >= -180.0
         && b[2] <= 180.0
-        && b[1] >= -80.0
-        && b[3] <= 80.0
+        && b[1] >= -MAX_LATITUDE
+        && b[3] <= MAX_LATITUDE
         && b[0] < b[2]
         && b[1] < b[3]
         && (b[2] - b[0]) < 1.0
@@ -48,8 +52,14 @@ pub fn validate_selection(v: &SelectionV1) -> Result<(), String> {
         return Err("INVALID_SELECTION: bbox, kind or reference invalid".into());
     }
     let [east, north] = project_wgs84([v.bbox[0], v.bbox[1]], [v.bbox[2], v.bbox[3]])?;
-    if east > 10_000.0 || north > 10_000.0 {
-        return Err("INVALID_SELECTION: region exceeds 10km G1 extent".into());
+    if east > MAX_EXTENT_METERS || north > MAX_EXTENT_METERS {
+        return Err("INVALID_SELECTION: region exceeds 2km G1 extent".into());
+    }
+    if v.terrain_profile.no_data_policy != "fail"
+        || !finite(v.terrain_profile.target_ground_sample_meters)
+        || !(0.1..=2000.0).contains(&v.terrain_profile.target_ground_sample_meters)
+    {
+        return Err("INVALID_SELECTION: unsupported no-data policy or sample spacing".into());
     }
     if v.terrain_profile.max_samples < 4 || v.terrain_profile.max_samples > MAX_CELLS {
         return Err("OUT_OF_MEMORY: sample budget outside G1 limit".into());
@@ -60,7 +70,7 @@ pub fn validate_selection(v: &SelectionV1) -> Result<(), String> {
     }
     Ok(())
 }
-pub fn validate_manifest(v: &TerrainSourceManifestV1) -> Result<bool, String> {
+pub fn validate_manifest(v: &TerrainSourceManifestV1) -> Result<(), String> {
     if !valid_bbox(v.coverage_bbox)
         || v.local_asset_token != format!("m2m-asset:{}", v.source_archive_sha256)
     {
@@ -83,9 +93,15 @@ pub fn validate_manifest(v: &TerrainSourceManifestV1) -> Result<bool, String> {
         return Err("HASH_MISMATCH: manifest SHA256 mismatch".into());
     }
     // A verified coverage index must STILL be queried for every required Z/X/Y tile.
-    Ok(v.coverage_status == "verified-tile-index")
+    Ok(()) // An index declaration does NOT prove any requested tile is present.
 }
 pub fn validate_grid(v: &ElevationGridV1) -> Result<(), String> {
+    if v.schema_version != "1.0.0"
+        || v.kind != "ElevationGridV1"
+        || v.storage_convention != "north-up-f64-row-major"
+    {
+        return Err("INVALID_SOURCE: unsupported grid schema or layout".into());
+    }
     let total = v
         .width
         .checked_mul(v.height)
@@ -140,6 +156,9 @@ pub fn validate_grid(v: &ElevationGridV1) -> Result<(), String> {
 }
 pub fn validate_build(req: &TerrainBuildRequestV1, grid: &ElevationGridV1) -> Result<(), String> {
     validate_grid(grid)?;
+    if req.selection_id != grid.selection_id {
+        return Err("HASH_MISMATCH: request/grid selectionId mismatch".into());
+    }
     if req.grid_sha256 != grid.grid_sha256 {
         return Err("HASH_MISMATCH: build/grid digest mismatch".into());
     }
@@ -237,6 +256,52 @@ pub fn validate_result(v: &MeshAnd3mfResultV1) -> Result<(), String> {
     }
     Ok(())
 }
+/// G0 output acceptance must bind output to its actual build request.
+/// Runtime artifact bytes and model conformance are verified by A3-02.
+pub fn validate_result_against_request(
+    result: &MeshAnd3mfResultV1, request: &TerrainBuildRequestV1,
+    grid: Option<&ElevationGridV1>,
+) -> Result<(), String> {
+    validate_result(result)?;
+    if result.job_id != request.job_id || result.artifact.export_token != request.export_token {
+        return Err("HASH_MISMATCH: export job/token differs from build".into());
+    }
+    let box_mm = result.geometry.measured_aabb_mm;
+    let tolerance = 0.05_f64;
+    if box_mm[0].abs() > tolerance
+        || box_mm[1].abs() > tolerance
+        || box_mm[2].abs() > tolerance
+        || ((box_mm[3]-box_mm[0])-request.model_width_mm).abs() > tolerance
+        || ((box_mm[4]-box_mm[1])-request.model_height_mm).abs() > tolerance
+    {
+        return Err("INVALID_DIMENSIONS: measured XY bounds differ from build".into());
+    }
+    if !finite(result.geometry.minimum_measured_thickness_mm)
+        || result.geometry.minimum_measured_thickness_mm + tolerance
+            < request.base_thickness_mm.max(request.minimum_feature_thickness_mm)
+    {
+        return Err("INVALID_GEOMETRY: insufficient measured thickness".into());
+    }
+    if let Some(g) = grid {
+        validate_build(request,g)?;
+        let [x0,y0,x1,y1] = request.clip_rect_meters;
+        let scale = request.model_width_mm/(x1-x0);
+        let mut max_z = f64::NEG_INFINITY;
+        let values = g.samples_meters.as_ref().ok_or("DATA_MISSING: grid unresolved")?;
+        for (i,sample) in values.iter().enumerate(){
+            let gx=g.min_east_meters+(i%g.width) as f64*g.dx_meters;
+            let gy=g.max_north_meters-(i/g.width) as f64*g.dy_meters;
+            if gx<x0-1e-9||gx>x1+1e-9||gy<y0-1e-9||gy>y1+1e-9 { continue; }
+            let z=sample.ok_or("DATA_MISSING: clipped sample absent")?;
+            max_z=max_z.max(request.base_thickness_mm
+              +(z-request.elevation_zero_meters)*scale*request.vertical_exaggeration);
+        }
+        if !finite(max_z)||(box_mm[5]-max_z).abs()>tolerance {
+            return Err("INVALID_DIMENSIONS: measured Z maximum differs from terrain".into());
+        }
+    }
+    Ok(())
+}
 pub fn validate_job(v: &JobStateV1) -> Result<(), String> {
     if !finite(v.progress01) || !(0.0..=1.0).contains(&v.progress01) {
         return Err("INTERNAL_ERROR: job progress outside bounds".into());
@@ -284,7 +349,7 @@ mod tests {
         ))
         .unwrap();
         assert!(validate_selection(&s).is_ok());
-        assert!(!validate_manifest(&m).unwrap());
+        assert!(validate_manifest(&m).is_ok());
         assert!(validate_grid(&g).is_ok());
         assert!(validate_build(&b, &g).is_ok());
         assert!(validate_job(&j).is_ok());
@@ -304,5 +369,52 @@ mod tests {
         let [e, n] = project_wgs84([-84.09, 39.741], [-84.089, 39.742]).unwrap();
         assert!((e - 85.71560839369111).abs() < 1e-6);
         assert!((n - 111.02965952283863).abs() < 1e-6);
+    }
+}
+
+#[cfg(test)]
+mod additional_contract_tests {
+    use super::*;
+    #[test]
+    fn reject_cross_selection_and_unlinked_export_result() {
+        let grid: ElevationGridV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/ElevationGridV1.valid.json"
+        )).unwrap();
+        let req: TerrainBuildRequestV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/TerrainBuildRequestV1.valid.json"
+        )).unwrap();
+        let result: MeshAnd3mfResultV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/MeshAnd3mfResultV1.valid.json"
+        )).unwrap();
+        assert!(validate_result_against_request(&result, &req, Some(&grid)).is_ok());
+        let mut wrong = req.clone();
+        wrong.selection_id = "sel-another-selection".into();
+        assert!(validate_build(&wrong,&grid).unwrap_err().starts_with("HASH_MISMATCH"));
+        let mut result_bad = result.clone();
+        result_bad.artifact.export_token = "m2m-export:other".into();
+        assert!(validate_result_against_request(&result_bad,&req,None).is_err());
+        let mut thickness_bad = result.clone();
+        thickness_bad.geometry.minimum_measured_thickness_mm = 1.0;
+        assert!(validate_result_against_request(&thickness_bad,&req,None).is_err());
+        let mut xy_bad = result;
+        xy_bad.geometry.measured_aabb_mm = [0.0,0.0,0.0,10.0,20.0,30.0];
+        assert!(validate_result_against_request(&xy_bad,&req,None).is_err());
+    }
+    #[test]
+    fn native_ingress_does_not_allow_canonical_hash_to_bypass_no_data_policy() {
+        let mut sel: SelectionV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
+        )).unwrap();
+        sel.terrain_profile.no_data_policy = "fill".into();
+        sel.selection_id = format!("sel-{}", &canonical::selection_digest(&sel).unwrap()[..32]);
+        assert!(validate_selection(&sel).is_err());
+        sel.terrain_profile.no_data_policy = "fail".into();
+        sel.terrain_profile.target_ground_sample_meters = f64::INFINITY;
+        assert!(validate_selection(&sel).is_err());
+        let mut grid: ElevationGridV1 = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/contracts/v1/ElevationGridV1.valid.json"
+        )).unwrap();
+        grid.anchor_wgs84 = [181.0,0.0];
+        assert!(validate_grid(&grid).unwrap_err().starts_with("INVALID_CRS"));
     }
 }

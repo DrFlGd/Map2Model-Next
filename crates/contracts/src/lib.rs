@@ -3,6 +3,7 @@
 //! These structs deserialize samples; higher-level semantic validation is required.
 use serde::{Deserialize, Serialize};
 
+pub mod binary;
 pub mod canonical;
 pub mod validation;
 

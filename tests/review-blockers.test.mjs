@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {selectionDigest,manifestDigest,gridDigest,canonicalMeshDigest} from '../packages/contracts/src/canonical.mjs';
-import {projectWgs84,unprojectWgs84,validateSelection,validateManifest,validateGrid,validateBuild,validateMeshResult,validateJobState,validJobTransition} from '../packages/contracts/src/validation.mjs';
+import {projectWgs84,unprojectWgs84,validateSelection,validateManifest,validateGrid,validateBuild,validateMeshResult,validateResultAgainstRequest,validateJobState,validJobTransition} from '../packages/contracts/src/validation.mjs';
 
 const read=(name)=>JSON.parse(readFileSync('tests/fixtures/contracts/v1/'+name+'.json','utf8'));
 const selection=read('SelectionV1.valid'),manifest=read('TerrainSourceManifestV1.valid'),
@@ -39,7 +39,7 @@ test('WGS84 linearized EN transform has a known 1 m-ish reference and exact inve
 });
 test('selection, geodata manifest and grid validators enforce no-data and size limits',()=>{
  assert.equal(validateSelection(selection).ok,true);
- assert.equal(validateManifest(manifest).coverageReady,false); // Envelope is never proof of tile coverage.
+ assert.equal(validateManifest(manifest).indexDeclared,false); // Envelope is never proof of tile coverage.
  assert.equal(validateGrid(grid).ok,true);
  assert.equal(validateGrid(missing).missingSamples,1);
  assert.equal(validateBuild({...build,gridSha256:missing.gridSha256},missing).code,'DATA_MISSING');
@@ -67,6 +67,12 @@ test('printing is aspect-preserving and defined for negative terrain height',()=
 });
 test('3MF result and job contracts reject false success and invalid geometry',()=>{
  assert.equal(validateMeshResult(result).ok,true);
+ assert.equal(validateResultAgainstRequest(result,build,grid).ok,true);
+ assert.equal(validateResultAgainstRequest({...result,jobId:'different'},build,grid).code,'HASH_MISMATCH');
+ assert.equal(validateResultAgainstRequest({...result,artifact:{...result.artifact,exportToken:'m2m-export:other'}},build).code,'HASH_MISMATCH');
+ assert.equal(validateResultAgainstRequest({...result,geometry:{...result.geometry,measuredAabbMm:[0,0,0,10,20,30]}},build).code,'INVALID_DIMENSIONS');
+ assert.equal(validateResultAgainstRequest({...result,geometry:{...result.geometry,minimumMeasuredThicknessMm:1}},build).code,'INVALID_GEOMETRY');
+ assert.equal(validateBuild({...build,selectionId:'sel-impostor'},grid).code,'HASH_MISMATCH');
  assert.equal(validateMeshResult({...result,geometry:{...result.geometry,oriented:false}}).code,'INVALID_GEOMETRY');
  assert.equal(validateMeshResult({...result,artifact:{...result.artifact,conformance:'failed'}}).code,'INVALID_GEOMETRY');
  assert.equal(validateJobState(job).ok,true);
