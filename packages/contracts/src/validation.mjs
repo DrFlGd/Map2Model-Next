@@ -52,13 +52,47 @@ export function validateSelection(v){
  return {ok:true};
 }
 export function validateManifest(v){
- if(!bboxValid(v.coverageBbox))return fail('INVALID_CRS','Invalid manifest coverage envelope.');
- if(v.localAssetToken!=='m2m-asset:'+v.sourceArchiveSha256)return fail('HASH_MISMATCH','Archive token differs from archive SHA-256.');
- if(v.coverageStatus==='verified-tile-index'&&!v.coverageIndexSha256)return fail('DATA_MISSING','Verified coverage requires immutable index digest.');
- if(v.coverageStatus==='envelope-only'&&v.coverageIndexSha256!==null)return fail('INVALID_SOURCE','Unverified coverage cannot claim an index.');
- if(v.verticalDatumStatus!=='known')return fail('UNSUPPORTED_DATUM','Vertical datum not established: cannot mark terrain Ready.');
- if(v.manifestSha256!==manifestDigest(v))return fail('HASH_MISMATCH','Canonical manifest digest mismatch.');
- return {ok:true,indexDeclared:v.coverageStatus==='verified-tile-index'}; // Never means per-selection coverage verified.
+ // Must enforce the wire discriminants at runtime, not merely parse a loose JS object.
+ // schemaVersion and kind are intentionally NOT included in the canonical manifest digest.
+ if(!v||v.schemaVersion!=='1.0.0'||v.kind!=='TerrainSourceManifestV1')
+   return fail('INVALID_SOURCE','Unsupported manifest schema version or kind.');
+ const requiredText=['sourceName','releaseId','archiveId','horizontalCrs','verticalDatumId',
+   'nativeResolutionSource','licenseIdentifier','attribution','decoderVersion'];
+ if(requiredText.some(key=>typeof v[key]!=='string'||v[key].length===0))
+   return fail('INVALID_SOURCE','Manifest is missing required source, rights or datum metadata.');
+ if(!Number.isSafeInteger(v.sourceBytes)||v.sourceBytes<1)
+   return fail('INVALID_SOURCE','Archive size must be a positive JS-safe integer.');
+ if(!finite(v.nominalGroundSampleMeters)||v.nominalGroundSampleMeters<=0)
+   return fail('INVALID_SOURCE','Nominal ground sample spacing must be finite and positive.');
+ if(v.uncertaintyMeters!==null&&(!finite(v.uncertaintyMeters)||v.uncertaintyMeters<0))
+   return fail('INVALID_SOURCE','Uncertainty must be null or nonnegative and finite.');
+ const sha256=/^[0-9a-f]{64}$/;
+ if(typeof v.sourceArchiveSha256!=='string'||!sha256.test(v.sourceArchiveSha256)||
+    typeof v.manifestSha256!=='string'||!sha256.test(v.manifestSha256))
+   return fail('INVALID_SOURCE','Manifest requires valid lowercase SHA-256 digests.');
+ if(!bboxValid(v.coverageBbox))
+   return fail('INVALID_CRS','Invalid manifest coverage envelope.');
+ if(v.localAssetToken!=='m2m-asset:'+v.sourceArchiveSha256)
+   return fail('HASH_MISMATCH','Archive token differs from archive SHA-256.');
+ if(v.coverageStatus!=='envelope-only'&&v.coverageStatus!=='verified-tile-index')
+   return fail('INVALID_SOURCE','Unknown source tile-coverage declaration.');
+ if(v.coverageStatus==='verified-tile-index'){
+   if(typeof v.coverageIndexSha256!=='string'||!sha256.test(v.coverageIndexSha256))
+     return fail('DATA_MISSING','Declared tile index requires a valid immutable SHA-256.');
+ }else if(v.coverageIndexSha256!==null)
+   return fail('INVALID_SOURCE','An envelope alone cannot claim a verified index.');
+ if(v.verticalDatumStatus!=='known'&&v.verticalDatumStatus!=='unknown'&&v.verticalDatumStatus!=='unsupported')
+   return fail('INVALID_SOURCE','Unknown vertical datum status.');
+ if(v.verticalDatumStatus!=='known')
+   return fail('UNSUPPORTED_DATUM','Vertical datum not established: cannot mark terrain Ready.');
+ try{
+   if(v.manifestSha256!==manifestDigest(v))
+     return fail('HASH_MISMATCH','Canonical manifest digest mismatch.');
+ }catch{
+   return fail('INVALID_SOURCE','Manifest cannot be canonically serialized.');
+ }
+ return {ok:true,indexDeclared:v.coverageStatus==='verified-tile-index'};
+ // indexDeclared is NOT coverageReady. Only a verified native Z/X/Y registry lookup proves readiness.
 }
 export function validateGrid(v){
  if(v.schemaVersion!=='1.0.0'||v.kind!=='ElevationGridV1'||v.storageConvention!=='north-up-f64-row-major')
