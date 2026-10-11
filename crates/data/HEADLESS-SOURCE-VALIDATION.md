@@ -73,3 +73,19 @@ Independent byte-level comparison of both uploaded files established:
 - **Do not commit either privately supplied PMTiles binary or redistribute it.** A separate private JSON evidence worksheet may contain hashes, ranges and metadata only.
 
 **Resolved:** the PMTiles v3 max-zoom verification failure for this extract; availability of a genuinely SHA-pinned, 512px, independently decoded regional fixture (private). **Not resolved:** metadata still contains attribution only and no explicit Terrarium encoding; registered/native importer remains fail-closed, even though the format-only inspector can read this archive. Real source release identity, upstream region/source-specific derivative/redistribution rights, native DEM resolution and vertical datum are not independently proven. `productionGenerationReady` remains false; no live Windows native/Rust CLI run was performed on the private bytes during this analysis. No G0 contract schema change.
+
+## A1-04 latest dispatch: private native Windows smoke
+
+Read `docs/agent-handoff/A1-04-INTEGRATION-DISPATCH-2026-10-10.md` from `main` at `ea9fc46a81c36538d374ab1c23563d4d373d1fba`. The lead runs A1-04 independently in draft PR #19. This branch remains stacked, unmerged and does not change frozen G0.
+
+In a checkout of Agent 2 PR #16 on a trusted **Windows** machine with Rust installed and Cargo dependencies prefetched, disconnect networking and run:
+
+```powershell
+.\crates\data\scripts\inspect-private-interlaken.ps1 -ArchivePath "C:\Path\To\interlaken-z17.pmtiles"
+```
+
+The script checks **exact private SHA** `75e03d8e0ec36d347ee4ed412ed816d67af53309236a52ecb028930c99f06aa0` and exact 3,127,295 bytes, displays `rustc --version` and `cargo --version`, then uses `cargo test --offline -p map2model-data --test private_mapterhorn -- --nocapture` and a direct `cargo run --offline -p map2model-data --bin terrain_offline -- inspect <file> 13 4275 2891`. A real file is **never** present in GitHub CI; without the private file environment variable, the opt-in test prints **SKIPPED** and does not prove private native acceptance. When enabled it checks real directory counts, five zoom-specific independent 512x512 sample goldens and z18 missing data, with all datum/rights/ready flags false. HTTP proxy refusal alone is not physical offline testing.
+
+**Honest execution status:** Both private files were independently hashed/parsed and WebP-decoded in the private container using Python/Pillow, but this container has **no Rust/Cargo toolchain** and no DNS access to install one; the actual private file has **not** been executed through compiled native Rust here or on Windows. Windows/Ubuntu public CI validates synthetic binary tests only. The operator-run private Windows test is the remaining evidence requirement.
+
+`crates/data/ENCODING-ATTESTATION-PROPOSAL.md` describes a signed/versioned, exact-source-SHA-bound encoding-only policy for lead review, **not** an implemented production relaxation. Real vertical datum, independently substantiated regional derivative rights/native DEM resolution and upstream release remain open gates; no production Generation Ready or G0 schema change.
