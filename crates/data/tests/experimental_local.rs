@@ -80,7 +80,7 @@ fn failed(out: &Output, prefix: &str) {
 fn experimental_local_candidate_raster_is_real_but_never_a_verified_v1_grid() {
     let root = tmp();
     original(&root);
-    let result = (|| -> Result<(), String> {
+    let result: Result<(), String> = {
         let archive = root.join("source").join("complete.pmtiles");
         let actual_sha = sha(&fs::read(&archive).unwrap());
         let (out, path) = preview(&root, "complete", &actual_sha, ACK);
@@ -137,7 +137,7 @@ fn experimental_local_candidate_raster_is_real_but_never_a_verified_v1_grid() {
         failed(&none, "EXPERIMENTAL_CONSENT_REQUIRED");
         assert!(!none_path.exists());
         Ok(())
-    })();
+    };
     let _ = fs::remove_dir_all(&root);
     result.unwrap();
 }
@@ -146,7 +146,7 @@ fn experimental_local_candidate_raster_is_real_but_never_a_verified_v1_grid() {
 fn experimental_missing_neighbor_and_alpha_no_data_stay_fail_closed() {
     let root = tmp();
     original(&root);
-    let result = (|| -> Result<(), String> {
+    let result: Result<(), String> = {
         for variant in ["missing-southeast", "masked-southeast"] {
             let file = root.join("source").join(format!("{variant}.pmtiles"));
             let (result, dest) = preview(&root, variant, &sha(&fs::read(&file).unwrap()), ACK);
@@ -154,7 +154,7 @@ fn experimental_missing_neighbor_and_alpha_no_data_stay_fail_closed() {
             assert!(!dest.exists());
         }
         Ok(())
-    })();
+    };
     let _ = fs::remove_dir_all(&root);
     result.unwrap();
 }
@@ -163,7 +163,7 @@ fn experimental_missing_neighbor_and_alpha_no_data_stay_fail_closed() {
 fn attribution_only_metadata_is_allowed_experimentally_but_not_registered_or_verified() {
     let root = tmp();
     original(&root);
-    let result = (|| -> Result<(), String> {
+    let result: Result<(), String> = {
         let original = root.join("source").join("complete.pmtiles");
         let mut bytes = fs::read(&original).unwrap();
         let offset = u64::from_le_bytes(bytes[24..32].try_into().unwrap()) as usize;
@@ -219,7 +219,7 @@ fn attribution_only_metadata_is_allowed_experimentally_but_not_registered_or_ver
         failed(&bad_output, "INVALID_SOURCE");
         assert!(!bad_dest.exists());
         Ok(())
-    })();
+    };
     let _ = fs::remove_dir_all(&root);
     result.unwrap();
 }
