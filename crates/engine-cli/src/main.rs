@@ -1,7 +1,7 @@
 //! A1-04 native-only offline host. No renderer filesystem operations or
 //! real-source generation are authorized by this stdio interface.
-mod synthetic;
 mod pmtiles_demo;
+mod synthetic;
 
 use serde_json::{json, Value};
 use std::env;
@@ -210,11 +210,19 @@ fn main() -> ExitCode {
                         error_response(None, safe, "Original synthetic PMTiles export failed")
                     }
                 },
-                _ => error_response(None, "INVALID_REQUEST", "Expected synthetic fixture root and native output path"),
+                _ => error_response(
+                    None,
+                    "INVALID_REQUEST",
+                    "Expected synthetic fixture root and native output path",
+                ),
             };
             let success = response["status"] == "ok";
             println!("{response}");
-            if success { ExitCode::SUCCESS } else { ExitCode::from(1) }
+            if success {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
         }
         Some("--export-synthetic") => {
             // This internal command is launched only by Electron main after its
