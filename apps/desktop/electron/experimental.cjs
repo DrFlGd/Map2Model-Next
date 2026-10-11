@@ -64,6 +64,9 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
    const destination=path.resolve(answer.filePath);
    if(path.extname(destination).toLowerCase()!=='.3mf')
      throw Error('INVALID_REQUEST: only native .3mf output allowed');
+   const controller=new AbortController();
+   const staging=path.join(path.dirname(destination),'.m2m-experimental-'+randomUUID()+'.stage.3mf');
+   running.set(payload.jobId,controller);
    const temp=await fs.mkdtemp(path.join(app.getPath('temp'),'m2m-private-job-'));
    try{
      const selectionFile=path.join(temp,'selection.json');
