@@ -1,4 +1,4 @@
-name: A1-06 Original Synthetic PMTiles Windows Preview
+name: A1-06 Original Synthetic PMTiles Windows Preview Hotfix
 
 on:
   push:
@@ -80,7 +80,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Independent original PMTiles 3MF validation failed'}
       - name: Install Electron and pinned UI tools
         run: npm install --no-audit --no-fund
-      - name: Test offline desktop shell and bundle renderer
+      - name: Test production Electron state availability regression and offline shell
         run: npm run ci
       - name: Package portable Windows EXE with native engine inside
         env:
@@ -90,7 +90,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $exe='release/Map2Model-Next-0.0.3-x64.exe'
+          $exe='release/Map2Model-Next-0.0.4-x64.exe'
           if(-not(Test-Path -LiteralPath $exe -PathType Leaf)){throw 'Portable EXE not packaged'}
           $size=(Get-Item -LiteralPath $exe).Length
           if($size -lt 50000000){throw 'Unexpectedly small portable EXE; native engine may be missing'}
@@ -104,7 +104,7 @@ jobs:
             if(-not(Test-Path -LiteralPath $required -PathType Leaf)){throw "Missing unpacked distributable resource: $required"}
           }
           $sha=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Map2Model-Next-0.0.3-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.3-x64.exe.sha256'
+          "$sha  Map2Model-Next-0.0.4-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.4-x64.exe.sha256'
           @(
             "sourceCommit=$env:GITHUB_SHA"
             "workflowRun=$env:GITHUB_RUN_ID"
@@ -122,13 +122,13 @@ jobs:
       - name: Retain portable Windows prototype as Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Map2Model-Next-0.0.3-Original-PMTiles-Windows
+          name: Map2Model-Next-0.0.4-Original-PMTiles-Windows
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
           path: |
-            release/Map2Model-Next-0.0.3-x64.exe
-            release/Map2Model-Next-0.0.3-x64.exe.sha256
+            release/Map2Model-Next-0.0.4-x64.exe
+            release/Map2Model-Next-0.0.4-x64.exe.sha256
             release/BUILD-PROVENANCE.txt
             native-integration-report.json
             native-original-pmtiles-report.json
@@ -137,7 +137,7 @@ jobs:
         shell: pwsh
         run: |
           @'
-          Map2Model Next v0.0.3 — Original Synthetic PMTiles Terrain Preview (unsigned Windows x64)
+          Map2Model Next v0.0.4 — Startup Fix Original Synthetic PMTiles Preview (unsigned Windows x64)\n\n          P0 HOTFIX: Corrected a local variable shadowing error in Electron m2m:state that caused startup INTERNAL_ERROR and disabled the original PMTiles export button.\n          Electron state readiness is now regression-tested with bundled native engine and synthetic fixture both available/missing.
 
           WHAT WORKS:
           - Offline Electron workspace: geographic rectangle selection and local project save/reopen.
@@ -162,6 +162,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag="v0.0.3-original-pmtiles-preview.$env:GITHUB_RUN_NUMBER"
-          gh release create $tag 'release/Map2Model-Next-0.0.3-x64.exe' 'release/Map2Model-Next-0.0.3-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.3 — Synthetic Windows Preview" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
+          $tag="v0.0.4-original-pmtiles-hotfix.$env:GITHUB_RUN_NUMBER"
+          gh release create $tag 'release/Map2Model-Next-0.0.4-x64.exe' 'release/Map2Model-Next-0.0.4-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.4 — Original Synthetic PMTiles Startup Hotfix" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
           if($LASTEXITCODE -ne 0){throw 'GitHub prerelease publish failed'}
