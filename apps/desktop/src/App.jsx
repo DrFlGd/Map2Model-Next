@@ -140,10 +140,17 @@ export function App(){
   setProject(record);await refresh();setMessage('Saved locally. No network access was needed.');
  });
  const pick=next=>{setSelection(next);setMessage('Selection changed — save the project to keep it.');};
+ const exportSample=()=>action(async()=>{
+   if(!api.exportSynthetic)throw Error('DATA_MISSING: native synthetic 3MF export unavailable');
+   const result=await api.exportSynthetic();
+   if(result.canceled){setMessage('Export canceled; no model written.');return;}
+   setMessage('Saved verified SYNTHETIC 3MF: '+result.fileName+' · '+result.vertices+
+     ' vertices · '+result.triangles+' triangles · SHA-256 '+result.packageSha256);
+ });
  return <div className="app-shell">
   <header className="topbar">
    <div><div className="brand">Map2Model <strong>Next</strong></div><div className="subbrand">Local-first terrain to 3D print</div></div>
-   <div className="status-pills"><span className="status active">● Offline mode</span><span className="status">Terrain engine: not installed</span></div>
+   <div className="status-pills"><span className="status active">● Offline mode</span><span className="status">{system.engine?.syntheticExportAvailable?'Synthetic 3MF engine ready':'Synthetic engine not installed'}</span></div>
   </header>
   <div className="app-grid">
    <aside className="sidebar">
@@ -177,12 +184,13 @@ export function App(){
     <h3>Offline data readiness</h3>
     <div className="readiness"><span>Map basemap</span><strong>Not installed</strong></div>
     <div className="readiness"><span>Mapterhorn terrain</span><strong>Missing</strong></div>
-    <div className="readiness"><span>Terrain-to-mesh engine</span><strong>Not integrated</strong></div>
-    <div className="readiness"><span>3MF exporter</span><strong>Not integrated</strong></div>
-    <div className="notice">The map shows only locally generated coordinate lines. These are not roads or topographic features. Downloading data and generating printable models require the other agents' engines.</div>
-    <button disabled className="generate">Generate 3MF — unavailable</button>
+    <div className="readiness"><span>Synthetic terrain engine</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
+    <div className="readiness"><span>Synthetic 3MF exporter</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
+    <div className="notice">This prototype exports a FIXED synthetic test surface (180 × 80 × 204 mm) to a real verified 3MF. It does NOT use your drawn geographic rectangle or real Mapterhorn data. The map remains coordinate-only; source rights and datum are unverified.</div>
+    <button onClick={exportSample} disabled={busy||!system.engine?.syntheticExportAvailable}
+      className="generate">{busy?'Exporting synthetic 3MF…':'Export SYNTHETIC demo 3MF'}</button>
    </aside>
   </div>
-  <footer className="footbar"><span>Map2Model Next · G1 desktop shell</span><span>Network disabled by default · No account or external services</span></footer>
+  <footer className="footbar"><span>Map2Model Next · Synthetic Terrain Preview 0.0.2</span><span>Network disabled by default · No account or external services</span></footer>
  </div>;
 }
