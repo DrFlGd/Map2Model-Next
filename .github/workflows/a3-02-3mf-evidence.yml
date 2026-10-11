@@ -1,0 +1,109 @@
+name: A3-02 Rust 3MF external reader evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'crates/export/**'
+      - 'crates/engine/**'
+      - 'Cargo.toml'
+      - '.github/workflows/a3-02-3mf-evidence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-3mf:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.90.0'
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned third-party independent 3MF parser
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-cache-dir 'trimesh==4.11.1' 'numpy==2.3.5' 'lxml==6.1.1' 'networkx==3.6.1'
+      - name: Generate actual signed Rust 3MF and SHA evidence
+        shell: bash
+        run: cargo run -p map2model-export --example synthetic_3mf -- ./synthetic-terrain.3mf | tee rust-export-report.txt
+      - name: Cross-check three variable original synthetic grid-to-3MF cases and negative failures
+        shell: bash
+        run: cargo test -p map2model-export --test varied_grids -- --nocapture | tee variable-grid-export-report.txt
+      - name: Inventory all resolved Cargo transitive licenses and lockfile
+        shell: bash
+        run: python crates/export/tests/cargo_dependency_report.py | tee cargo-license-report.json
+      - name: Gather actual transitive license and NOTICE texts from Cargo sources
+        shell: bash
+        run: python crates/export/tests/cargo_license_texts.py | tee cargo-notices-report.json
+      - name: Stage and test exact Cargo NOTICE inclusion for future Electron packaging
+        shell: bash
+        run: |
+          python crates/export/tests/notice_shipping.py stage .m2m-notice-staging | tee notice-stage-report.json
+          python crates/export/tests/notice_shipping.py verify .m2m-notice-staging
+          python -c 'from pathlib import Path; p=Path(".m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.md"); p.write_bytes(p.read_bytes() + b"tampered")'
+          if python crates/export/tests/notice_shipping.py verify .m2m-notice-staging; then
+            echo "tampered packaged NOTICE incorrectly passed" >&2
+            exit 1
+          fi
+          python crates/export/tests/notice_shipping.py stage .m2m-notice-staging
+          python crates/export/tests/notice_shipping.py verify .m2m-notice-staging
+      - name: Independently validate OPC, mesh and canonical hash using Python stdlib
+        shell: bash
+        run: python crates/export/tests/independent_3mf.py ./synthetic-terrain.3mf crates/engine/fixtures/A3-01.reference.json | tee independent-opc-report.json
+      - name: Open Rust-generated 3MF with third-party trimesh reader
+        shell: bash
+        run: python crates/export/tests/trimesh_import_3mf.py ./synthetic-terrain.3mf crates/engine/fixtures/A3-01.reference.json | tee trimesh-import-report.json
+      - name: Validate model XML against published 3MF Core 1.4 Consortium XSD
+        shell: bash
+        run: python crates/export/tests/core_xsd_check.py ./synthetic-terrain.3mf | tee core-1.4-xsd-report.json
+      - name: Correlate two independent reader reports with Rust-produced ZIP SHA
+        shell: bash
+        run: |
+          python -c 'import json; a=json.load(open("independent-opc-report.json")); b=json.load(open("trimesh-import-report.json")); assert a["status"] == b["status"] == "passed"; assert a["packageSha256"] == b["packageSha256"]; assert a["vertices"] == b["vertices"] == 24; assert a["triangles"] == b["triangles"] == 44; assert a["aabbMm"] == b["aabbMm"] == [0,0,0,180,80,204]; assert a["volumeMm3"] == b["volumeMm3"] == 1449600; print("Two independent readers agree on the Rust-generated ZIP")'
+      - name: Retain synthetic 3MF and validator evidence for lead slicer testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: a3-02-rust-3mf-${{ matrix.os }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            synthetic-terrain.3mf
+            rust-export-report.txt
+            variable-grid-export-report.txt
+            independent-opc-report.json
+            trimesh-import-report.json
+            core-1.4-xsd-report.json
+            cargo-license-report.json
+            cargo-notices-report.json
+            rust-license-texts-manifest.json
+            THIRD_PARTY_RUST_NOTICES.md
+            notice-stage-report.json
+            .m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.md
+            .m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.manifest.json
+            Cargo.lock
+
+  cross-platform-byte-identity:
+    needs: synthetic-3mf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch independently produced Ubuntu and Windows 3MF and NOTICE artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: a3-02-rust-3mf-*
+          path: ./ci-platform-artifacts
+          merge-multiple: false
+      - name: Require byte-identical 3MF, Cargo.lock and shipped NOTICE text/manifest
+        run: |
+          python crates/export/tests/cross_platform_artifacts.py \
+            ci-platform-artifacts/a3-02-rust-3mf-ubuntu-latest \
+            ci-platform-artifacts/a3-02-rust-3mf-windows-latest

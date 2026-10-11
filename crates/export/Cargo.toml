@@ -1,0 +1,17 @@
+[package]
+name = "map2model-export"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+map2model-contracts = { path = "../contracts" }
+map2model-mesh = { path = "../engine" }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+
+# Pure-Rust OPC ZIP packaging and independent strict XML read-back.
+zip = { version = "=2.4.2", default-features = false }
+roxmltree = "=0.20.0"
+# OS-backed cryptographic nonce for per-attempt exclusive artifact staging.
+getrandom = "=0.3.4"
