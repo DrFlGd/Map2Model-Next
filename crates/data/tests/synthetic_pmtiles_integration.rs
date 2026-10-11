@@ -19,7 +19,9 @@ fn root() -> PathBuf {
     std::env::temp_dir().join(format!(
         "m2m-original-pmtiles-{}-{}",
         std::process::id(),
-        salt.iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+        salt.iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
     ))
 }
 fn path<'a>(p: &'a Path) -> &'a str {
@@ -53,10 +55,7 @@ fn check_success(out: &Output, where_: &str) {
 fn failure(out: &Output, code: &str) {
     assert!(!out.status.success(), "unexpected success: {code}");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.starts_with(code),
-        "expected {code}; got {stderr}"
-    );
+    assert!(stderr.starts_with(code), "expected {code}; got {stderr}");
 }
 fn setup() -> (PathBuf, Value) {
     let root = root();
@@ -111,8 +110,7 @@ fn two_axis_seam_original_pmtiles_to_reproducible_grid_and_watertight_mesh() {
         assert_eq!(source["verticalDatumId"], "SYNTHETIC-RELATIVE-METERS");
         assert_eq!(source["licenseIdentifier"], "CC0-1.0");
         assert_eq!(source["verticalDatumStatus"], "known");
-        let s: SelectionV1 =
-            serde_json::from_slice(&fs::read(&selection_file).unwrap()).unwrap();
+        let s: SelectionV1 = serde_json::from_slice(&fs::read(&selection_file).unwrap()).unwrap();
         validation::validate_selection(&s)?;
         assert_eq!(s.bbox, [-84.024, 39.7067, -84.023, 39.7077]);
         assert_eq!(s.selection_id, report["selectionId"]);
@@ -128,14 +126,14 @@ fn two_axis_seam_original_pmtiles_to_reproducible_grid_and_watertight_mesh() {
         assert_eq!(parsed["tileSample"]["webpHeight"], 512);
         assert_eq!(parsed["productionGenerationReady"], false);
 
-        let (result, grid_path) = decode(&base, "complete", &archive, &declaration, &selection_file);
+        let (result, grid_path) =
+            decode(&base, "complete", &archive, &declaration, &selection_file);
         check_success(&result, "complete two-axis seam source decode");
         let summary: Value = serde_json::from_slice(&result.stdout).unwrap();
         assert_eq!(summary["networkRequests"], 0);
         assert_eq!(summary["sourceArchiveSha256"], sha_actual);
         assert_eq!(summary["productionGenerationReady"], false);
-        let grid: ElevationGridV1 =
-            serde_json::from_slice(&fs::read(&grid_path).unwrap()).unwrap();
+        let grid: ElevationGridV1 = serde_json::from_slice(&fs::read(&grid_path).unwrap()).unwrap();
         validation::validate_grid(&grid)?;
         assert_eq!(grid.kind, "ElevationGridV1");
         assert_eq!(grid.selection_id, s.selection_id);
@@ -145,19 +143,37 @@ fn two_axis_seam_original_pmtiles_to_reproducible_grid_and_watertight_mesh() {
         assert_eq!(grid.storage_convention, "north-up-f64-row-major");
         assert!(grid.width >= 4 && grid.height >= 4);
         assert!(grid.valid_mask.as_ref().unwrap().iter().all(|v| *v));
-        assert!(grid.samples_meters.as_ref().unwrap().iter().flatten().any(|v| *v < 0.));
-        assert!(grid.samples_meters.as_ref().unwrap().iter().flatten().any(|v| *v > 0.));
+        assert!(grid
+            .samples_meters
+            .as_ref()
+            .unwrap()
+            .iter()
+            .flatten()
+            .any(|v| *v < 0.));
+        assert!(grid
+            .samples_meters
+            .as_ref()
+            .unwrap()
+            .iter()
+            .flatten()
+            .any(|v| *v > 0.));
         let x_extent = grid.dx_meters * (grid.width - 1) as f64;
         let y_extent = grid.dy_meters * (grid.height - 1) as f64;
-        let expected_metric = validation::project_wgs84([s.bbox[0], s.bbox[1]], [s.bbox[2], s.bbox[3]])?;
+        let expected_metric =
+            validation::project_wgs84([s.bbox[0], s.bbox[1]], [s.bbox[2], s.bbox[3]])?;
         assert!((x_extent - expected_metric[0]).abs() < 1e-8);
         assert!((y_extent - expected_metric[1]).abs() < 1e-8);
         assert_eq!(grid.grid_sha256, canonical::grid_digest(&grid)?);
         assert_eq!(grid.grid_id, format!("grid-{}", &grid.grid_sha256[..32]));
 
         let retry = offline(&[
-            "decode", path(&archive), path(&base.join("again-registry")),
-            path(&declaration), path(&selection_file), "12", path(&base.join("again.grid.json"))
+            "decode",
+            path(&archive),
+            path(&base.join("again-registry")),
+            path(&declaration),
+            path(&selection_file),
+            "12",
+            path(&base.join("again.grid.json")),
         ]);
         check_success(&retry, "second independent decode");
         let again: ElevationGridV1 =
@@ -214,10 +230,30 @@ fn original_synthetic_missing_nodata_hash_rights_datum_budget_and_malformed_fail
         let (archive, declaration, selection_file) = variant_paths(&base, "complete");
         let original: Value = serde_json::from_slice(&fs::read(&declaration).unwrap()).unwrap();
         for (label, key, replacement, wanted) in [
-            ("bad-sha", "expectedArchiveSha256", json!("00".repeat(32)), "HASH_MISMATCH"),
-            ("unknown-datum", "verticalDatumStatus", json!("unknown"), "UNSUPPORTED_DATUM"),
-            ("absent-license", "licenseIdentifier", json!(""), "INVALID_SOURCE"),
-            ("no-resolution", "nativeResolutionSource", json!(""), "INVALID_SOURCE"),
+            (
+                "bad-sha",
+                "expectedArchiveSha256",
+                json!("00".repeat(32)),
+                "HASH_MISMATCH",
+            ),
+            (
+                "unknown-datum",
+                "verticalDatumStatus",
+                json!("unknown"),
+                "UNSUPPORTED_DATUM",
+            ),
+            (
+                "absent-license",
+                "licenseIdentifier",
+                json!(""),
+                "INVALID_SOURCE",
+            ),
+            (
+                "no-resolution",
+                "nativeResolutionSource",
+                json!(""),
+                "INVALID_SOURCE",
+            ),
         ] {
             let mut altered = original.clone();
             altered[key] = replacement;
@@ -227,7 +263,8 @@ fn original_synthetic_missing_nodata_hash_rights_datum_budget_and_malformed_fail
             failure(&out, wanted);
             assert!(!dest.exists());
         }
-        let selection: SelectionV1 = serde_json::from_slice(&fs::read(&selection_file).unwrap()).unwrap();
+        let selection: SelectionV1 =
+            serde_json::from_slice(&fs::read(&selection_file).unwrap()).unwrap();
         let mut outside = selection.clone();
         outside.bbox = [-84.03, 39.70, -84.029, 39.701]; // header envelope but tile beyond the 2x2 index?
         outside.selection_id = format!("sel-{}", &canonical::selection_digest(&outside)?[..32]);
@@ -238,8 +275,17 @@ fn original_synthetic_missing_nodata_hash_rights_datum_budget_and_malformed_fail
         outside.bbox = [-84.112, 39.7067, -84.111, 39.7077];
         outside.selection_id = format!("sel-{}", &canonical::selection_digest(&outside)?[..32]);
         fs::write(&outside_file, serde_json::to_vec(&outside).unwrap()).unwrap();
-        let (out, dest) = decode(&base, "outside-index", &archive, &declaration, &outside_file);
-        assert!(!out.status.success(), "unavailable geographic coverage cannot decode");
+        let (out, dest) = decode(
+            &base,
+            "outside-index",
+            &archive,
+            &declaration,
+            &outside_file,
+        );
+        assert!(
+            !out.status.success(),
+            "unavailable geographic coverage cannot decode"
+        );
         assert!(!dest.exists());
 
         let mut budget = selection.clone();
@@ -255,7 +301,13 @@ fn original_synthetic_missing_nodata_hash_rights_datum_budget_and_malformed_fail
         let mut corrupt = fs::read(&archive).unwrap();
         corrupt[0] = 0x00;
         fs::write(&corrupt_path, corrupt).unwrap();
-        let (out, dest) = decode(&base, "damaged", &corrupt_path, &declaration, &selection_file);
+        let (out, dest) = decode(
+            &base,
+            "damaged",
+            &corrupt_path,
+            &declaration,
+            &selection_file,
+        );
         assert!(!out.status.success());
         assert!(!dest.exists());
         // Exact SHA must be checked before structurally interpreting forged input.
