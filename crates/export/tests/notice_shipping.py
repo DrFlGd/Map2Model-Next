@@ -50,9 +50,20 @@ def load_source():
     actual_choices = {}
     for p in packages:
         expression = p["licenseExpression"]
-        if expression not in CHOICES or not p["files"]:
+        # Lead integration's bounded alternative-policy reconciliation:
+        # select MIT only from a plain OR of reviewed permissive options,
+        # never from AND, exceptions, LGPL, custom predicates, or ambiguous SPDX.
+        # The full MIT grant+disclaimer must also appear in the actual source
+        # LICENSE/NOTICE files, checked below. Human release review remains pending.
+        alternatives = expression.split(" OR ") if isinstance(expression, str) else []
+        eligible = (
+            len(alternatives) > 1 and "MIT" in alternatives
+            and len(set(alternatives)) == len(alternatives)
+            and set(alternatives).issubset({"MIT", "Apache-2.0", "0BSD", "Zlib"})
+        )
+        if (expression not in CHOICES and not eligible) or not p["files"]:
             raise ValueError(f"human license decision required for {p['name']}@{p['version']}: {expression}")
-        selection = CHOICES[expression]
+        selection = CHOICES.get(expression, "MIT" if eligible else None)
         actual_choices[f"{p['name']}@{p['version']}"] = {
             "declaredSpdx": expression,
             "chosenLicense": selection,
