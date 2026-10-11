@@ -508,7 +508,10 @@ pub fn inspect_unverified_local_pmtiles(
     let mut indexed_tiles_by_zoom = BTreeMap::<String, usize>::new();
     for id in inspected.tiles.keys() {
         let z = observed_zoom(*id).ok_or_else(|| {
-            err("INVALID_SOURCE", "indexed tile ID falls outside declared source zoom")
+            err(
+                "INVALID_SOURCE",
+                "indexed tile ID falls outside declared source zoom",
+            )
         })?;
         *indexed_tiles_by_zoom.entry(z.to_string()).or_default() += 1;
     }
