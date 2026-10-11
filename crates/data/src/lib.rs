@@ -1,8 +1,8 @@
 //! Offline, bounded PMTiles v3 importer for Terrarium WebP archives.
 //! Data never leaves the local native engine. All source policy is caller-supplied;
 //! no zoom, header bbox, or metadata string is substituted for proven rights/datum.
-pub mod terrarium;
 pub mod experimental;
+pub mod terrarium;
 
 use flate2::read::GzDecoder;
 use map2model_contracts::{canonical, validation, SelectionV1, TerrainSourceManifestV1};
