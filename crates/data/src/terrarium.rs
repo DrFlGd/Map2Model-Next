@@ -82,7 +82,11 @@ pub fn decode_terrarium_webp(bytes: &[u8]) -> Result<TerrariumTile, String> {
     }
     Ok(TerrariumTile { heights, valid })
 }
-pub(crate) fn tile_coordinate(lon: f64, lat: f64, zoom: u8) -> Result<(u32, u32, usize, usize), String> {
+pub(crate) fn tile_coordinate(
+    lon: f64,
+    lat: f64,
+    zoom: u8,
+) -> Result<(u32, u32, usize, usize), String> {
     if !lon.is_finite()
         || !lat.is_finite()
         || !(-180.0..=180.0).contains(&lon)
