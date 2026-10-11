@@ -217,7 +217,11 @@ fn variable_original_synthetic_grids_export_deterministic_signed_provenance_3mfs
         );
         assert_eq!(exported.vertices, output.geometry.vertices);
         assert_eq!(exported.triangles, output.geometry.triangles);
-        assert_eq!(exported.aabb_mm, output.geometry.measured_aabb_mm);
+        assert!(
+            exported.aabb_mm.iter().zip(output.geometry.measured_aabb_mm.iter())
+                .all(|(actual, expected)| (actual - expected).abs() < 1e-6),
+            "Core XML 12-decimal serialization preserves all AABB axes within one micrometre"
+        );
         assert!((exported.aabb_mm[3] - request.model_width_mm).abs() < 0.05);
         assert!((exported.aabb_mm[4] - request.model_height_mm).abs() < 0.05);
         assert!(output.geometry.minimum_measured_thickness_mm >= request.base_thickness_mm);
