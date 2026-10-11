@@ -96,8 +96,10 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      if(controller.signal.aborted)throw Error('CANCELLED: before publication');
      await fs.link(staging,destination);
      const finalBytes=await fs.readFile(destination);
-     if(createHash('sha256').update(finalBytes).digest('hex')!==sha)
+     if(createHash('sha256').update(finalBytes).digest('hex')!==sha){
+       await fs.unlink(destination).catch(()=>{});
        throw Error('HASH_MISMATCH: published 3MF checksum differs');
+     }
      return {canceled:false,experimentalOnly:true,productionGenerationReady:false,
        fileName:path.basename(destination),packageSha256:sha,
        sourceArchiveSha256:job.sha,candidateHeightsSha256:result.candidateHeightsSha256,
