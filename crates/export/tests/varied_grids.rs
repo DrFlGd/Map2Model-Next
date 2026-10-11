@@ -72,11 +72,13 @@ fn signed_synthetic_grid(
     // projected-metric EN rectangle, but intentionally vary node density.
     let selection: map2model_contracts::SelectionV1 = serde_json::from_str(include_str!(
         "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let [east_m, north_m] = map2model_contracts::validation::project_wgs84(
         [selection.bbox[0], selection.bbox[1]],
         [selection.bbox[2], selection.bbox[3]],
-    ).unwrap();
+    )
+    .unwrap();
     grid.dx_meters = east_m / (case.width - 1) as f64;
     grid.dy_meters = north_m / (case.height - 1) as f64;
     grid.max_north_meters = north_m;
