@@ -140,6 +140,15 @@ export function App(){
   setProject(record);await refresh();setMessage('Saved locally. No network access was needed.');
  });
  const pick=next=>{setSelection(next);setMessage('Selection changed — save the project to keep it.');};
+ const exportOriginalPmtiles=()=>action(async()=>{
+   if(!api.exportOriginalSyntheticPmtiles)throw Error('DATA_MISSING: synthetic PMTiles worker is unavailable');
+   const result=await api.exportOriginalSyntheticPmtiles();
+   if(result.canceled){setMessage('Synthetic PMTiles 3MF export cancelled.');return;}
+   setMessage('Verified ORIGINAL SYNTHETIC 512px PMTiles → '+result.gridWidth+'×'+result.gridHeight+
+     ' ElevationGridV1 → '+result.vertices+' mesh vertices → '+result.fileName+
+     ' · source SHA '+result.sourceArchiveSha256+' · grid SHA '+result.gridSha256+
+     ' · 3MF SHA '+result.packageSha256);
+ });
  const exportSample=()=>action(async()=>{
    if(!api.exportSynthetic)throw Error('DATA_MISSING: native synthetic 3MF export unavailable');
    const result=await api.exportSynthetic();
@@ -186,11 +195,14 @@ export function App(){
     <div className="readiness"><span>Mapterhorn terrain</span><strong>Missing</strong></div>
     <div className="readiness"><span>Synthetic terrain engine</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
     <div className="readiness"><span>Synthetic 3MF exporter</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
-    <div className="notice">This prototype exports a FIXED synthetic test surface (180 × 80 × 204 mm) to a real verified 3MF. It does NOT use your drawn geographic rectangle or real Mapterhorn data. The map remains coordinate-only; source rights and datum are unverified.</div>
+    <div className="notice">Two demos: the existing fixed synthetic mesh, or an ORIGINAL four-tile 512px WebP PMTiles input decoded into a real ElevationGridV1 before mesh/3MF export. Both are test data only. The drawn map rectangle DOES NOT control either demo. Real Mapterhorn source remains unverified and disabled.</div>
+    <button onClick={exportOriginalPmtiles}
+      disabled={busy||!system.engine?.originalPmtilesExportAvailable}
+      className="generate">{busy?'Working…':'Export ORIGINAL SYNTHETIC PMTiles terrain 3MF'}</button>
     <button onClick={exportSample} disabled={busy||!system.engine?.syntheticExportAvailable}
       className="generate">{busy?'Exporting synthetic 3MF…':'Export SYNTHETIC demo 3MF'}</button>
    </aside>
   </div>
-  <footer className="footbar"><span>Map2Model Next · Synthetic Terrain Preview 0.0.2</span><span>Network disabled by default · No account or external services</span></footer>
+  <footer className="footbar"><span>Map2Model Next · Original PMTiles Terrain Preview 0.0.3</span><span>Network disabled by default · No account or external services</span></footer>
  </div>;
 }
