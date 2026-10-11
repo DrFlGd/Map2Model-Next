@@ -57,3 +57,22 @@ The Agent-2-only [`.github/workflows/a2-02-synthetic-handoff.yml`](../../.github
 - Lead owns stateful/cancellable Electron worker, actual variable-grid 3MF export, notice packaging, authorized Save dialog and next user-launchable Windows preview. No code in this fixture bypasses that integration.
 
 Report exact new source/grid/mesh SHA evidence and CI job links on stacked PR #16; PR #14 remains draft and importer policy remains fail-closed for real unverified sources.
+
+## Independent exact-byte CI fixture acceptance (2026-10-11)
+
+The [original source/decoder/mesh and Ed25519 handoff workflow run 38155328272](https://github.com/DrFlGd/Map2Model-Next/actions/runs/38155328272) passed at code commit `ed4f0db30fc4f656878503ed2b2b847c72601e70` and published the original-only artifact **`agent2-original-512px-pmtiles-to-grid`** (artifact ID `11708307259`, GitHub artifact ZIP SHA-256 `58ee8ba0ab8ea2ba73cc7f6a033df376ab36fa2164bca0cba71496b3a06f5da1`). The archive was downloaded and independently inspected as a ZIP in a separate environment; no private Mapterhorn bytes were present.
+
+| Expected result | SHA-256 / value |
+| --- | --- |
+| Complete original synthetic PMTiles (108,494 bytes) | `489ec694f29c3d4c7bc5ed3f2dced736736e5c2a5d09cc1cef1ff3a0a8ede651` |
+| Missing southeast tile PMTiles (81,448 bytes) | `edcf389182529e9ee8e5b8959cdd701acc2a73f1cce87fbdce8418595d5e0aa4` |
+| Masked southeast tile PMTiles (112,632 bytes) | `43cacc5ca8657e9fcab11c77a8a3ed1b5f854e7d3e7473f70c5de4d7e8bd5dba` |
+| Frozen `TerrainSourceManifestV1` digest (complete) | `dcc92181e381e3d4bc54134de722ae5e50975d73113d947b953c2a019cb4140b` |
+| Frozen `ElevationGridV1` canonical digest (6×8) | `d8d29dfe158c9aed3d3a4dbea29ae495cf56e35668f785e4e201cb2c4f99c2b8` |
+| Agent 3 actual watertight native canonical mesh digest (96 vertices / 188 triangles) | `43c7901d2b368a895cdfab30ce07cdae2305102c38ef049a13e7752eb53c8e9f` |
+| Frozen `SelectionV1` identity | `sel-39d3c9ddee03b25c249251cf32659e33` |
+| Synthetic encoding-only test evidence snapshot (NOT upstream publisher doc) | `9b5db0dcb1be90bcfe73fa66bd937e4b96ce199d7bdaa5af77366d832575d951` |
+
+Real-native test results: **2/2** new Rust integration tests PASS; **7/7** Node Ed25519/strict RFC8785-subset tests PASS; zero network requests. For the good fixture, two independent decoder processes produced the same source/manifest/grid hashes and original signed sample values, the closed/watertight mesh was built through Agent 3's real Rust library; for missing and masked southeast and invalid source declarations/selection, no grid output was published. The generated `decoded-grid.json` and `decode-summary.json` are included in the GitHub artifact for the integrator. The **actual 3MF writer and Electron job lifecycle remain Agent 1/Agent 3 integration**; a mesh test is *not* an assertion that a new variable-grid 3MF export occurred.
+
+These SHA results belong **only to original synthetic fixture code and exact dependencies at this run**. They do not describe the private Mapterhorn sample or v0.0.2 fixed-grid Windows preview. The source generator is deterministic and requires no network, but any future generator/codec changes must be re-hashed/re-tested at their exact commit. Never take `SYNTHETIC-RELATIVE-METERS` to mean a real known datum.
