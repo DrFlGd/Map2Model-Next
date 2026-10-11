@@ -304,7 +304,7 @@ struct InspectedArchive {
     header: Header,
     tiles: BTreeMap<u64, TileRecord>,
 }
-fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
+fn inspect_archive(bytes: &[u8], require_terrarium_metadata: bool) -> Result<InspectedArchive, String> {
     let h = parse_header(bytes)?;
     let meta = decompress(
         section(bytes, h.metadata.0, h.metadata.1, "metadata")?,
@@ -313,10 +313,18 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
     )?;
     let object: serde_json::Value = serde_json::from_slice(&meta)
         .map_err(|_| err("INVALID_SOURCE", "PMTiles metadata must be JSON"))?;
-    if !object.is_object() || object.get("encoding").and_then(|v| v.as_str()) != Some("terrarium") {
+    // Real regional Mapterhorn extracts may have attribution-only JSON.
+    // Unverified format inspection can report and decode WebP dimensions/bytes
+    // without *claiming* the source is Terrarium or establishing its datum.
+    // Registration stays fail-closed without explicit archive encoding metadata.
+    let encoding = object.get("encoding").and_then(|v| v.as_str());
+    if !object.is_object()
+        || encoding.is_some_and(|value| value != "terrarium")
+        || (require_terrarium_metadata && encoding != Some("terrarium"))
+    {
         return Err(err(
             "INVALID_SOURCE",
-            "expected explicitly declared Terrarium metadata",
+            "registered source requires explicit Terrarium metadata; format-only inspection cannot attest source encoding",
         ));
     }
     let root = decompress(
@@ -419,6 +427,13 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
     })
 }
 
+/// Import and registry re-open require explicitly declared Terrarium metadata.
+/// Mapterhorn's attribution-only extracts can still undergo UNVERIFIED format
+/// inspection without altering their original bytes or claiming source rights.
+fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
+    inspect_archive(bytes, true)
+}
+
 /// Untrusted source-format inspection ONLY. This deliberately does not create a
 /// TerrainSourceManifestV1, register tokens, or assert datum/license readiness.
 /// Intended for a developer-acquired local PMTiles extract; no network I/O.
@@ -464,7 +479,7 @@ pub fn inspect_unverified_local_pmtiles(
             "sample path changed during inspection",
         ));
     }
-    let inspected = inspect(&bytes)?;
+    let inspected = inspect_archive(&bytes, false)?;
     let header = &inspected.header;
     let raw_metadata = decompress(
         section(&bytes, header.metadata.0, header.metadata.1, "metadata")?,
@@ -473,6 +488,11 @@ pub fn inspect_unverified_local_pmtiles(
     )?;
     let metadata: serde_json::Value = serde_json::from_slice(&raw_metadata)
         .map_err(|_| err("INVALID_SOURCE", "unverified archive metadata invalid"))?;
+    let observed_zoom = |id: u64| {
+        (header.min_zoom..=header.max_zoom).find(|z| tile_id_in_zoom(id, *z, *z))
+    };
+    let actual_min_zoom = inspected.tiles.keys().next().and_then(|id| observed_zoom(*id));
+    let actual_max_zoom = inspected.tiles.keys().next_back().and_then(|id| observed_zoom(*id));
     let sample = if let Some((z, x, y)) = requested_tile {
         let id = tile_id(z, x, y)?;
         let record = inspected.tiles.get(&id).ok_or_else(|| {
@@ -512,6 +532,11 @@ pub fn inspect_unverified_local_pmtiles(
         "headerCoverageBbox": header.bbox,
         "headerMinZoom": header.min_zoom,
         "headerMaxZoom": header.max_zoom,
+        "actualIndexedMinZoom": actual_min_zoom,
+        "actualIndexedMaxZoom": actual_max_zoom,
+        "headerZoomRangeConsistent": actual_min_zoom == Some(header.min_zoom)
+            && actual_max_zoom == Some(header.max_zoom),
+        "metadataExplicitlyDeclaresTerrarium": metadata.get("encoding").and_then(|v| v.as_str()) == Some("terrarium"),
         "indexedTileCount": inspected.tiles.len(),
         "internalCompression": if header.internal_compression == 2 {"gzip"} else {"none"},
         "tileCompression": if header.tile_compression == 2 {"gzip"} else {"none"},
