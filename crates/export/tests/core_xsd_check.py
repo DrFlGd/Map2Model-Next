@@ -27,9 +27,20 @@ class OfflineW3CResolver(etree.Resolver):
 def verify(file_name):
     folder = pathlib.Path(__file__).parent / "official_core_1_4"
     schema_bytes = (folder / "3mf-core-1.4.xsd").read_bytes()
+    # 3MF Core Appendix B.1.1 publishes maxOccurs="2147483647".
+    # libxml2/lxml rejects that implementation-limit value while XML Schema
+    # allows it. Normalize to "unbounded" solely for parser compatibility.
+    # Every supported G1 mesh is many orders of magnitude below that cap.
+    # Preserve and hash the exact unmodified official schema separately.
+    replacement_count = schema_bytes.count(b'maxOccurs="2147483647"')
+    if replacement_count < 1:
+        raise ValueError("Pinned Consortium schema no longer has expected maxOccurs bounds")
+    schema_for_lxml = schema_bytes.replace(
+        b'maxOccurs="2147483647"', b'maxOccurs="unbounded"'
+    )
     parser = etree.XMLParser(no_network=True, resolve_entities=False, load_dtd=False)
     parser.resolvers.add(OfflineW3CResolver())
-    schema_tree = etree.ElementTree(etree.fromstring(schema_bytes, parser))
+    schema_tree = etree.ElementTree(etree.fromstring(schema_for_lxml, parser))
     schema = etree.XMLSchema(schema_tree)
     with zipfile.ZipFile(file_name) as archive:
         model_bytes = archive.read("3D/3dmodel.model")
@@ -38,9 +49,11 @@ def verify(file_name):
     return {
         "validatorId": "consortium-published-core-1.4-xsd",
         "validatorVersion": etree.LXML_VERSION,
-        "validatorScope": "official 3MF Core 1.4 model XSD only; separate OPC/slicer checks required",
+        "validatorScope": "Consortium Core 1.4 XSD with transparently recorded libxml2 maxOccurs compatibility normalization; separate OPC/slicer checks required",
         "schemaSnapshotCommit": "997b385e06f3181cf9aae0c578e0b45ccd48ccb2",
         "schemaSha256": hashlib.sha256(schema_bytes).hexdigest(),
+        "normalizedSchemaSha256": hashlib.sha256(schema_for_lxml).hexdigest(),
+        "maxOccursCompatibilityReplacements": replacement_count,
         "modelXmlSha256": hashlib.sha256(model_bytes).hexdigest(),
         "packageSha256": hashlib.sha256(pathlib.Path(file_name).read_bytes()).hexdigest(),
         "status": "passed",
