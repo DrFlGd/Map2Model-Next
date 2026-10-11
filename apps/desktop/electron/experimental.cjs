@@ -75,9 +75,9 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      try{
        ({stdout}=await runBinary(nativeEnginePath(),[
          '--export-local-experimental',job.path,job.sha,selectionFile,
-         String(job.zoom),payload.jobId,POLICY,destination
-       ],{windowsHide:true,timeout:120000,maxBuffer:65536,encoding:'utf8'}));
-     }catch{throw Error('EXPORT_FAILED: native experimental 3MF generation failed');}
+         String(job.zoom),payload.jobId,POLICY,staging
+       ],{windowsHide:true,timeout:120000,maxBuffer:65536,encoding:'utf8',signal:controller.signal}));
+     }catch{throw Error(controller.signal.aborted?'CANCELLED: experimental worker stopped':'EXPORT_FAILED: native experimental 3MF generation failed');}
      let response;
      try{response=JSON.parse(stdout);}catch{throw Error('EXPORT_FAILED: invalid native report');}
      const result=response.result;
