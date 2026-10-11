@@ -13,6 +13,8 @@ fn error(code: &'static str, message: &str) -> MeshError {
 
 /// Print the actual finite candidate samples against their LOCAL sample minimum.
 /// Does not infer any absolute elevation or vertical CRS.
+// The separately typed experimental surface parameters are intentionally explicit.
+#[allow(clippy::too_many_arguments)]
 pub fn build_candidate(
     width: usize,
     height: usize,
