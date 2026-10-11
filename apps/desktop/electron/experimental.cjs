@@ -6,7 +6,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const runBinary=promisify(execFile);
 const POLICY='PRIVATE-LOCAL-TERRAIN-2026-10-11';
-function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEnginePath}){
+function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEnginePath,runNative=runBinary}){
  const pending=new Map();
  handler('selectExperimentalSource',async payload=>{
    const {assertSelection}=await import('../shared/selection.mjs');
@@ -22,7 +22,7 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      throw Error('INVALID_SOURCE: expected a bounded, ordinary local PMTiles file');
    let stdout;
    try{
-     ({stdout}=await runBinary(nativeEnginePath(),['--inspect-local-experimental',sourcePath],
+     ({stdout}=await runNative(nativeEnginePath(),['--inspect-local-experimental',sourcePath],
        {windowsHide:true,timeout:120000,maxBuffer:65536,encoding:'utf8'}));
    }catch{throw Error('INVALID_SOURCE: local PMTiles inspection failed');}
    let checked;
