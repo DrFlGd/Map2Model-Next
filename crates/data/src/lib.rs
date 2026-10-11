@@ -552,6 +552,7 @@ pub fn inspect_unverified_local_pmtiles(
         "tileType": "WebP",
         "encodingDeclaredInMetadata": metadata.get("encoding"),
         "nameDeclaredInMetadata": metadata.get("name"),
+        "sourceAttributionFromArchive": metadata.get("attribution").and_then(|v| v.as_str()).filter(|s| s.len()<=2048),
         "headerCoverageBbox": header.bbox,
         "headerMinZoom": header.min_zoom,
         "headerMaxZoom": header.max_zoom,
