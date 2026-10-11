@@ -36,5 +36,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Run Rust unit tests
         run: cargo test --workspace
-      - name: Check engine health stub
+      - name: Check bounded native engine host health
         run: cargo run --quiet --bin map2model-engine -- --health
+      - name: Run frozen synthetic-grid to real-mesh native CLI smoke
+        run: cargo run --quiet --bin map2model-engine -- --smoke-mesh
