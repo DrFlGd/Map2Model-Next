@@ -37,7 +37,7 @@ jobs:
         env:
           A2_SYNTHETIC_ARCHIVE: agent2-original-synthetic/complete.pmtiles
         run: node --test crates/data/tests/encoding_attestation.test.mjs
-      - name: Native CLI: decode the complete synthetic source, assert no real-source readiness
+      - name: "Native CLI: decode the complete synthetic source, assert no real-source readiness"
         run: |
           cargo run --quiet --locked -p map2model-data --bin terrain_offline -- decode             "$PWD/agent2-original-synthetic/complete.pmtiles"             "$RUNNER_TEMP/map2model-artificial-only-registry"             "$PWD/agent2-original-synthetic/complete.source.json"             "$PWD/agent2-original-synthetic/selection.json"             12             "$PWD/agent2-original-synthetic/decoded-grid.json"             | tee "$PWD/agent2-original-synthetic/decode-summary.json"
       - name: Verify complete source + frozen output summary and collect SHA report
