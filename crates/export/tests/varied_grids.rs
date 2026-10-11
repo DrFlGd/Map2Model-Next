@@ -218,7 +218,10 @@ fn variable_original_synthetic_grids_export_deterministic_signed_provenance_3mfs
         assert_eq!(exported.vertices, output.geometry.vertices);
         assert_eq!(exported.triangles, output.geometry.triangles);
         assert!(
-            exported.aabb_mm.iter().zip(output.geometry.measured_aabb_mm.iter())
+            exported
+                .aabb_mm
+                .iter()
+                .zip(output.geometry.measured_aabb_mm.iter())
                 .all(|(actual, expected)| (actual - expected).abs() < 1e-6),
             "Core XML 12-decimal serialization preserves all AABB axes within one micrometre"
         );
