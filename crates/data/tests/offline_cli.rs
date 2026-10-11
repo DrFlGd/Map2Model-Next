@@ -102,6 +102,7 @@ fn attribution_only_sample_and_mismatched_header_zoom_are_format_inspectable_but
         assert_eq!(report["actualIndexedMaxZoom"], 0);
         assert_eq!(report["headerZoomRangeConsistent"], false);
         assert_eq!(report["indexedTileCount"], 1);
+        assert_eq!(report["indexedTilesByZoom"]["0"], 1);
         assert_eq!(report["tileSample"]["webpWidth"], 512);
         assert_eq!(report["tileSample"]["elevationCenterMeters"], 0.);
         assert_eq!(report["sourceLicenseVerified"], false);
@@ -197,6 +198,7 @@ fn binary_offline_source_inspection_and_grid_to_frozen_mesh_consumer() {
         assert_eq!(report["tileSample"]["elevationCenterMeters"], 0.0);
         assert_eq!(report["tileSample"]["maskedPixelCount"], 0);
         assert_eq!(report["indexedTileCount"], 1);
+        assert_eq!(report["indexedTilesByZoom"]["0"], 1);
         assert_eq!(report["archiveSha256"].as_str().unwrap().len(), 64);
 
         // This declaration is TRUE ONLY for the original artificial pixels.
