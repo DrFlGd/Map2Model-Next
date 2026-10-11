@@ -219,11 +219,7 @@ mod tests {
     use super::*;
     use crate::{import_local_pmtiles, SourceDeclaration};
     use image::{codecs::webp::WebPEncoder, ExtendedColorType};
-    use std::{
-        fs,
-        path::PathBuf,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::{fs, path::PathBuf};
     fn webp_alpha_fixture(alpha: bool) -> Vec<u8> {
         let stride = if alpha { 4 } else { 3 };
         let mut pixels = vec![0u8; TILE_SIZE * TILE_SIZE * stride];
@@ -335,14 +331,13 @@ mod tests {
         }
     }
     fn temp() -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "m2m-decode-{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ))
+        // Parallel Windows CI tests can share the same coarse timestamp.
+        // Use 128 bits of OS entropy instead, so one test cannot remove
+        // another test's still-active native-registry directory.
+        let mut nonce = [0_u8; 16];
+        getrandom::fill(&mut nonce).expect("test temp root requires OS entropy");
+        let hex = nonce.iter().map(|b| format!("{b:02x}")).collect::<String>();
+        std::env::temp_dir().join(format!("m2m-decode-{}-{hex}", std::process::id()))
     }
     fn selection() -> SelectionV1 {
         serde_json::from_str(include_str!(
