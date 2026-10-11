@@ -47,3 +47,12 @@ jobs:
           cargo run --quiet --bin map2model-engine -- --export-synthetic "$SAMPLE" > native-3mf-report.json
           node -e 'const r=require("./native-3mf-report.json");if(r.status!=="ok"||r.result.synthetic!==true||r.result.threeMfExported!==true||r.result.vertices!==24||r.result.triangles!==44||r.result.productionGenerationReady!==false)process.exit(1)'
           python crates/export/tests/independent_3mf.py "$SAMPLE" crates/engine/fixtures/A3-01.reference.json
+      - name: Generate original 512px PMTiles and verify native grid-to-3MF on both OSes
+        shell: bash
+        run: |
+          mkdir -p target
+          SOURCE="$(node -p 'require("path").resolve("target/ci-original-pmtiles")')"
+          TARGET="$(node -p 'require("path").resolve("target/ci-original-terrain.3mf")')"
+          cargo run --quiet -p map2model-data --bin terrain_synthetic_fixture -- "$SOURCE"
+          cargo run --quiet --bin map2model-engine -- --export-original-pmtiles "$SOURCE" "$TARGET" > target/original-pmtiles-report.json
+          python tests/verify_original_pmtiles_3mf.py "$TARGET" target/original-pmtiles-report.json
