@@ -1,6 +1,6 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
-const allowed=new Set(['state','chooseLibrary','listProjects','createProject','loadProject','saveProject','engineHealth','exportSynthetic','exportOriginalSyntheticPmtiles','selectExperimentalSource','exportExperimentalLocal','discardExperimentalSource']);
+const allowed=new Set(['state','chooseLibrary','listProjects','createProject','loadProject','saveProject','engineHealth','exportSynthetic','exportOriginalSyntheticPmtiles','selectExperimentalSource','exportExperimentalLocal','discardExperimentalSource','cancelExperimentalJob']);
 const invoke=(operation,payload={})=>{
   if(!allowed.has(operation))return Promise.reject(new Error('UNSUPPORTED_OPERATION'));
   return ipcRenderer.invoke('m2m:'+operation,payload);
