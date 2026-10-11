@@ -2,7 +2,7 @@
 const {app,BrowserWindow,dialog,ipcMain,session}=require('electron');
 const path=require('node:path');
 const fs=require('node:fs/promises');
-const {createHash,randomUUID}=require('node:crypto');
+const {createHash}=require('node:crypto');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const execFileAsync=promisify(execFile);
@@ -14,7 +14,6 @@ let window=null;
 let prefs={library:null};
 let projects=null;
 let mainOrigin='file:';
-const pendingExperimental=new Map();
 
 function plainFailure(error){
   const text=String(error?.message||'INTERNAL_ERROR');
@@ -102,6 +101,9 @@ async function installHandlers(){
   handler('engineHealth',async()=>({status:await nativeEngineAvailable()?'synthetic-ready':'not-installed',
     canGenerate:false,syntheticExportAvailable:await nativeEngineAvailable(),
     reason:'Real geographic sources are not authorized in this synthetic prototype'}));
+  require('./experimental.cjs').registerExperimentalHandlers({
+    handler,app,dialog,getWindow:()=>window,nativeEnginePath
+  });
   handler('exportOriginalSyntheticPmtiles',async()=>{
     if(!await nativeEngineAvailable()||!await originalPmtilesAvailable())
       throw Error('DATA_MISSING: bundled original synthetic PMTiles source or engine is missing');
