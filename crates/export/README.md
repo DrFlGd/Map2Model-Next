@@ -1,6 +1,6 @@
 # A3-02 — Real deterministic 3MF Core 1.4.0 exporter
 
-**Status:** Actual ZIP-based 3MF writing, strict internal OPC/geometry/provenance readback, and no-clobber atomic publication are implemented in the **draft PR #15**. **Published Core 1.4 model-XSD verification, independent OPC/mesh validation and third-party trimesh import have passed on the real Rust ZIP; PrusaSlicer/Bambu Studio physical Windows open-and-slice acceptance, full production-OPC conformance and native job IPC remain unverified.** Issue #6; depends on A3-01 merged #13.
+**Status:** Actual ZIP-based 3MF writing, strict internal OPC/geometry/provenance readback, and no-clobber atomic publication are implemented in the **draft PR #15**. **Published Core 1.4 model-XSD verification, independent OPC/mesh validation and third-party trimesh import have passed on the real Rust ZIP; owner-attested Windows v0.0.2 GUI-exported synthetic 3MF import and slice in BOTH PrusaSlicer and Bambu Studio is now a basic preview PASS; exact standalone-PR artifact/version/dimension/repair evidence, full production-OPC conformance and native job IPC remain unverified.** Issue #6; depends on A3-01 merged #13.
 
 ## Writer decision, third-party licensing and review
 
@@ -46,11 +46,15 @@ The example reads the unmodified frozen V1 synthetic grid/build/manifest. Expect
 
 Exact Rust file digests: ZIP `8463789ff97816d3dccd8b8085444c623150fb68417f3da04eafe9364afce675`, provenance `6f4536749caa1a2b1cccda07b62b339eb70bd04d77c770ff5e0d4f1d8de66d07`, canonical mesh `dd8c9fa5c7734534d176ef02ee38299b5911343d7112933298dd6dfc79185db9`.
 
+**New original variable-grid integration tests:** `tests/varied_grids.rs` creates three nontrivial original north-up `ElevationGridV1` shapes using the exact frozen WGS84 selection's projected metric extent, varying node density, interior clips and exaggeration. It builds genuine watertight meshes and real 3MF ZIPs, validates all three through a **separate Python ZIP/XML/mesh canonical-SHA reader**, checks source/grid/selection/provenance association, and exercises missing samples, unsupported datum, missing rights, bad SHA, wrong selection/clip and cancelled publication. These are **decoder-shaped artificial test grids, NOT yet the Agent 2 512px PMTiles/WebP bytes**. The exact integrated PMTiles flow remains Lead-owned on Agent 2's stacked PR #16, and is documented in [NATIVE-INTEGRATION.md](NATIVE-INTEGRATION.md).
+
+**Shipping NOTICE candidate:** the `cargo_license_texts.py` collector includes exact resolved Cargo LICENSE/NOTICE source texts and hashes; `notice_shipping.py` selects explicit compatible SPDX alternatives and stages `resources/legal/THIRD_PARTY_NOTICES.md` plus a SHA/lock-identity manifest, then verifies exact bytes and fails tamper tests. This is checked as a **staged shipping candidate**, not guaranteed present inside a Windows Electron EXE. The Lead must package it with separate Electron/Node notices, inspect actual packaged resources, and approve human license compliance.
+
 **CI workflow (lead-owned addition for explicit review):** `.github/workflows/a3-02-3mf-evidence.yml` separately builds/archives a redistribution-safe signed synthetic ZIP and all reports. `tests/cargo_dependency_report.py` inventories actually resolved package SPDX declarations and the Cargo.lock checksum for the lead to review; this does not substitute bundled dependency license notices. For the physical Windows test procedure and explicit `not-tested` tracking, see [SLICER-ACCEPTANCE.md](SLICER-ACCEPTANCE.md).
 
 ## Remaining external acceptance
 
 - The **published Core 1.4.0 model XSD** test and two independent ZIP/mesh readers now pass on real Rust output. Full official Consortium **test_suites** and application import/conformance acceptance remain separate checks; no claim of full 3MF conformance made.
-- Open and slice in **PrusaSlicer and Bambu Studio** at two lead-approved, version-pinned Windows versions; record open success/no repair, dimensions within ±0.05mm, expected appearance/base, screenshot/log, and resulting slice correctness.
+- Product owner has already imported and sliced the **v0.0.2 GUI-exported synthetic 3MF** successfully in **BOTH PrusaSlicer and Bambu Studio**; basic preview smoke is accepted. Extra exact-artifact 3MF ZIP SHA correlation, pinned slicer versions, measured dimensions ±0.05mm, repairs/warnings and screenshots are **not** attested; record those only if the Lead needs the additional release gate, not by repeating the identical basic owner test.
 - Final native IPC, progress, atomic staged artifact generation with crash isolation and canonical `MeshAnd3mfResultV1` success **only after the lead-defined external validation gate**. No G3 pass claims yet.
 - Only node-aligned G1 rectangular clips; 100,000 clipped mesh-node cap inherited from A3-01. Only single-part terrain meshes; writer excludes textures, materials, arbitrary mesh soups and unknown extension namespaces.
