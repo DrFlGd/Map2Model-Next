@@ -64,3 +64,55 @@ pub fn export(file: &Path, source_sha: &str, selection_path: &Path,
     }
     let mesh=build_candidate(w,h,dx,dy,&samples,120.,4.,1.)
         .map_err(|e|format!("{}: {}",e.code,e.message))?;
+    let attribution=preview["sourceAttributionFromArchive"].as_str().filter(|s|s.len()<=2048);
+    let local_min=samples.iter().copied().fold(f64::INFINITY,f64::min);
+    let consent_sha=format!("{:x}",Sha256::digest(
+        format!("{job}\0{source_sha}\0{}\0{zoom}\0{POLICY}",selection.selection_id).as_bytes()));
+    let provenance=json!({
+        "kind":"Experimental3mfProvenanceV1",
+        "experimentalOnly":true,"localPersonalUseOnly":true,"ownerAcknowledgedUnverified":true,
+        "encodingAuthenticated":false,"sourceLicenseVerified":false,
+        "nativeResolutionVerified":false,"redistributionApproved":false,
+        "productionGenerationReady":false,"verticalDatumStatus":"unknown",
+        "sourceLicenseStatus":"unknown","sourceArchiveSha256":source_sha,
+        "sourceArchiveBytes":preview["sourceArchiveBytes"],
+        "sourceAttributionFromArchive":attribution,
+        "sourceMetadataDeclaresTerrarium":preview["sourceMetadataDeclaresTerrarium"],
+        "candidateHeightsSha256":candidate_sha,"selectionId":selection.selection_id,
+        "bboxWgs84":selection.bbox,"zoom":zoom,"width":w,"height":h,
+        "dxMeters":dx,"dyMeters":dy,"localRelativeReferenceMinMeters":local_min,
+        "printWidthMm":120.,"printHeightMm":mesh.geometry.measured_aabb_mm[4],
+        "baseThicknessMm":4.,"verticalExaggeration":1.,
+        "candidateEncoding":"Terrarium interpretation - unverified",
+        "uncertaintyMeters":Value::Null,"nativeResolutionMeters":Value::Null,
+        "jobId":job,"operation":"experimental-local-3mf-export",
+        "acknowledgementPolicyVersion":POLICY,"consentBindingSha256":consent_sha,
+        "warning":"EXPERIMENTAL - USER-SUPPLIED TERRAIN. Source permissions not independently verified; vertical datum and native accuracy unknown. Private local evaluation only; third-party license and attribution requirements still apply. Not a certified elevation model. Redistribution not approved by Map2Model Next."
+    });
+    let artifact=export_experimental_core(&mesh,&provenance)
+        .map_err(|e|format!("{}: {}",e.job_reason_code(),e.message))?;
+    let st=fs::symlink_metadata(file).map_err(|_|"DATA_MISSING: input removed")?;
+    if !st.is_file()||st.file_type().is_symlink()||st.len()>128*1024*1024 {
+        return Err("INVALID_SOURCE: source changed".into());
+    }
+    let latest=fs::read(file).map_err(|_|"DATA_MISSING: source unreadable")?;
+    if format!("{:x}",Sha256::digest(&latest))!=source_sha {
+        return Err("HASH_MISMATCH: source changed before publication".into());
+    }
+    write_3mf_atomic(destination,&artifact,||false)
+        .map_err(|e|format!("{}: {}",e.job_reason_code(),e.message))?;
+    let published=fs::read(destination).map_err(|_|"EXPORT_FAILED: published file unreadable")?;
+    if format!("{:x}",Sha256::digest(&published))!=artifact.package_sha256 {
+        return Err("HASH_MISMATCH: published experimental 3MF changed".into());
+    }
+    Ok(json!({"status":"experimental","experimentalOnly":true,
+        "productionGenerationReady":false,"verticalDatumStatus":"unknown",
+        "redistributionApproved":false,"sourceArchiveSha256":source_sha,
+        "candidateHeightsSha256":candidate_sha,"selectionId":selection.selection_id,
+        "jobId":job,"sourceAttributionFromArchive":attribution,
+        "canonicalGeometrySha256":artifact.canonical_geometry_sha256,
+        "provenanceSha256":artifact.provenance_sha256,
+        "packageSha256":artifact.package_sha256,"bytes":published.len(),
+        "vertices":artifact.vertices,"triangles":artifact.triangles,
+        "aabbMm":artifact.aabb_mm,"threeMfExported":true,"networkRequests":0}))
+}
