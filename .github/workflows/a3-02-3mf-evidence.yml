@@ -38,6 +38,9 @@ jobs:
       - name: Inventory all resolved Cargo transitive licenses and lockfile
         shell: bash
         run: python crates/export/tests/cargo_dependency_report.py | tee cargo-license-report.json
+      - name: Gather actual transitive license and NOTICE texts from Cargo sources
+        shell: bash
+        run: python crates/export/tests/cargo_license_texts.py | tee cargo-notices-report.json
       - name: Independently validate OPC, mesh and canonical hash using Python stdlib
         shell: bash
         run: python crates/export/tests/independent_3mf.py ./synthetic-terrain.3mf crates/engine/fixtures/A3-01.reference.json | tee independent-opc-report.json
@@ -64,4 +67,7 @@ jobs:
             trimesh-import-report.json
             core-1.4-xsd-report.json
             cargo-license-report.json
+            cargo-notices-report.json
+            rust-license-texts-manifest.json
+            THIRD_PARTY_RUST_NOTICES.md
             Cargo.lock
