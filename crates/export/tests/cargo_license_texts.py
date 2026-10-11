@@ -89,7 +89,7 @@ def main():
         "must review package selections, license conditions, required attributions "
         "and transitive notices before shipping a Windows binary.",
         "",
-        f"Cargo.lock SHA-256: \`{report['cargoLockSha256']}\`",
+        f"Cargo.lock SHA-256: `{report['cargoLockSha256']}`",
         f"External Rust packages: {len(packages)}",
         f"Missing readable license files: {len(missing)}",
         "",
@@ -99,11 +99,11 @@ def main():
             "---", "",
             f"## {name} {version} — {filename}",
             "",
-            f"SPDX declaration: \`{expression or 'UNDECLARED'}\`",
+            f"SPDX declaration: `{expression or 'UNDECLARED'}`",
             "",
-            "\`\`\`text",
+            "```text",
             notice.rstrip("\r\n"),
-            "\`\`\`",
+            "```",
             "",
         ])
     pathlib.Path("THIRD_PARTY_RUST_NOTICES.md").write_text(
