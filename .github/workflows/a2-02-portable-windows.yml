@@ -1,12 +1,9 @@
 name: Agent 2 portable Windows PMTiles format inspector (draft)
 
+# The owner has finished this standalone format-inspection milestone.
+# No additional inspector builds on every provenance/doc commit;
+# any future explicit maintainer rebuild requires manual dispatch.
 on:
-  push:
-    branches:
-      - agent/2-A2-02-terrarium-grid
-    paths:
-      - 'crates/data/**'
-      - '.github/workflows/a2-02-portable-windows.yml'
   workflow_dispatch:
 
 permissions:
