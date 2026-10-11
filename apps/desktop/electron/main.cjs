@@ -37,13 +37,13 @@ async function nativeEngineAvailable(){
 }
 async function state(){
   const syntheticAvailable=await nativeEngineAvailable();
-  const originalPmtilesAvailable=syntheticAvailable&&await originalPmtilesAvailable();
+  const pmtilesFixtureReady=syntheticAvailable&&await originalPmtilesAvailable();
   return {appVersion:app.getVersion(),offline:true,networkEnabled:false,
     libraryLabel:prefs.library?path.basename(prefs.library):null,
     libraryConfigured:Boolean(prefs.library),
     engine:{status:syntheticAvailable?'synthetic-ready':'not-installed',canGenerate:false,
       syntheticExportAvailable:syntheticAvailable,
-      originalPmtilesExportAvailable:originalPmtilesAvailable},
+      originalPmtilesExportAvailable:pmtilesFixtureReady},
     basemap:{status:'not-installed'},terrain:{status:'not-installed'}};
 }
 async function prefsPath(){return path.join(app.getPath('userData'),USERDATA_PREFS);}
