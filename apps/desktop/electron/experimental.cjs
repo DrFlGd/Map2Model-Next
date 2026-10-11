@@ -73,7 +73,7 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      await fs.writeFile(selectionFile,JSON.stringify(job.selection),{mode:0o600,flag:'wx'});
      let stdout;
      try{
-       ({stdout}=await runBinary(nativeEnginePath(),[
+       ({stdout}=await runNative(nativeEnginePath(),[
          '--export-local-experimental',job.path,job.sha,selectionFile,
          String(job.zoom),payload.jobId,POLICY,staging
        ],{windowsHide:true,timeout:120000,maxBuffer:65536,encoding:'utf8',signal:controller.signal}));
