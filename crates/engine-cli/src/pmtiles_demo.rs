@@ -33,10 +33,9 @@ pub fn export_fixture(source_dir: &Path, destination: &Path) -> Result<Value, St
         return Err("INVALID_REQUEST: fixture and fresh .3mf destination must be absolute".into());
     }
     let fixture = source_dir.join("complete.pmtiles");
-    let declaration: SourceDeclaration = serde_json::from_slice(&read_small(
-        &source_dir.join("complete.source.json"),
-    )?)
-    .map_err(|_| "INVALID_SOURCE: synthetic declaration not valid JSON")?;
+    let declaration: SourceDeclaration =
+        serde_json::from_slice(&read_small(&source_dir.join("complete.source.json"))?)
+            .map_err(|_| "INVALID_SOURCE: synthetic declaration not valid JSON")?;
     let selection: SelectionV1 =
         serde_json::from_slice(&read_small(&source_dir.join("selection.json"))?)
             .map_err(|_| "INVALID_SELECTION: fixture selection is invalid")?;
@@ -55,10 +54,12 @@ pub fn export_fixture(source_dir: &Path, destination: &Path) -> Result<Value, St
         return Err("INVALID_SOURCE: only the original audited synthetic source is allowed".into());
     }
     let mut nonce = [0_u8; 16];
-    getrandom::fill(&mut nonce)
-        .map_err(|_| "INTERNAL_ERROR: OS randomness unavailable")?;
+    getrandom::fill(&mut nonce).map_err(|_| "INTERNAL_ERROR: OS randomness unavailable")?;
     let token = nonce.iter().map(|x| format!("{x:02x}")).collect::<String>();
-    let registry = std::env::temp_dir().join(format!("m2m-original-pmtiles-{}-{token}", std::process::id()));
+    let registry = std::env::temp_dir().join(format!(
+        "m2m-original-pmtiles-{}-{token}",
+        std::process::id()
+    ));
     fs::create_dir(&registry).map_err(|_| "EXPORT_FAILED: temporary registry unavailable")?;
     let result = (|| -> Result<Value, String> {
         let imported = import_local_pmtiles(&fixture, &registry, &declaration)?;
@@ -88,13 +89,13 @@ pub fn export_fixture(source_dir: &Path, destination: &Path) -> Result<Value, St
             engine_version: "map2model-mesh/0.0.1".into(),
             export_token: "m2m-export:original-synthetic-four-tiles".into(),
         };
-        let mesh = build_mesh(&grid, &request)
-            .map_err(|e| format!("{}: {}", e.code, e.message))?;
+        let mesh = build_mesh(&grid, &request).map_err(|e| format!("{}: {}", e.code, e.message))?;
         let archive = export_3mf(&mesh, &grid, &request, &imported.manifest)
             .map_err(|e| format!("{}: {}", e.job_reason_code(), e.message))?;
         write_3mf_atomic(destination, &archive, || false)
             .map_err(|e| format!("{}: {}", e.job_reason_code(), e.message))?;
-        let published = fs::read(destination).map_err(|_| "EXPORT_FAILED: cannot verify published file")?;
+        let published =
+            fs::read(destination).map_err(|_| "EXPORT_FAILED: cannot verify published file")?;
         use sha2::{Digest, Sha256};
         if format!("{:x}", Sha256::digest(&published)) != archive.package_sha256 {
             return Err("HASH_MISMATCH: published 3MF bytes differ from verified package".into());
