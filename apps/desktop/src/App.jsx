@@ -114,7 +114,8 @@ const guest={getState:async()=>emptyStatus};
 export function App(){
  const api=window.map2model||guest;
  const [system,setSystem]=useState(emptyStatus),[projects,setProjects]=useState([]),[project,setProject]=useState(null),
-   [selection,setSelection]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[projectName,setProjectName]=useState('');
+   [selection,setSelection]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[projectName,setProjectName]=useState(''),
+    [experimentalSource,setExperimentalSource]=useState(null),[experimentalAccepted,setExperimentalAccepted]=useState(false);
  async function refresh(){
   const state=await api.getState();setSystem(state);
   if(state.libraryConfigured&&api.listProjects)setProjects(await api.listProjects());
