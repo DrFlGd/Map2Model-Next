@@ -2,13 +2,14 @@
 
 **Document:** M2M-REQ-001, v1.1, dated 10 October 2026  
 **Scope:** Phase 0 foundation + Phase 1 local-first terrain-to-3MF vertical slice  
-**Status:** G0 approved/merged; A3-01 merged; Windows v0.0.2 synthetic preview owner-tested successfully in both PrusaSlicer and Bambu Studio. A2-01/A2-02 real-data authorization and A3-02 full distribution acceptance remain open; see latest dispatch. Original kickoff sequence below is historical context.
+**Status:** G0 approved/merged; A3-01 merged; Windows v0.0.4 synthetic 512px PMTiles-to-3MF and original fixed-demo exports owner-tested successfully in **both PrusaSlicer and Bambu Studio**. Owner has now approved a separate **private/local experimental source** path with explicit licensing/provenance/unknown-datum disclaimer; this is NOT source-rights clearance, real elevation accuracy certification or authorization to distribute data. See current G2 review dispatch below. Original kickoff sequence is historical context.
 
 ## Current dispatch — updated October 11, 2026
 
 **Read the current, authoritative instructions before working from the original role briefs:**
 
-- **[POST-v0.0.2 next actions — AGENT 2, AGENT 3 AND LEAD](POST-V0.0.2-NEXT-ACTIONS-2026-10-11.md)** — **CURRENT and authoritative**; basic Windows synthetic GUI/export/dual-slicer smoke accepted, next native lifecycle, original synthetic PMTiles grid, 3MF notice and Mapterhorn provenance gates.
+- **[CURRENT G2 review — private-use experimental local terrain and 3MF](G2-PRIVATE-USE-EXPERIMENTAL-TERRAIN-REVIEW-2026-10-11.md)** — **READ FIRST**; Agent 2 and Agent 3 review the owner-selected disclaimer, separate experimental DTO/export boundaries, consent and attribution before Lead implementation. [Full policy](../licensing/PRIVATE-LOCAL-TERRAIN-POLICY-2026-10-11.md).
+- **[POST-v0.0.2 next actions — AGENT 2, AGENT 3 AND LEAD](POST-V0.0.2-NEXT-ACTIONS-2026-10-11.md)** — **HISTORICAL; superseded on private experimental source gating**; basic Windows synthetic GUI/export/dual-slicer smoke accepted, next native lifecycle, original synthetic PMTiles grid, 3MF notice and Mapterhorn provenance gates.
 - **[A1-04 integration dispatch and latest Agent 2/3 acceptance gates](A1-04-INTEGRATION-DISPATCH-2026-10-10.md)** — newest exact PR heads, real-source format vs authorization, actual Rust 3MF slicer testing, and lead implementation sequence. Read this first.
 - **[G1 active actions for Agent 2, Agent 3 and lead](G1-NEXT-ACTIONS-2026-10-10.md)** — exact PR links, present acceptance gaps, 3MF writer decision, agent ownership and synthetic-first Windows build sequence.
 - **[Real Mapterhorn sample and source-datum protocol](MAPTERHORN-SAMPLE-PROTOCOL.md)** — official endpoints, test extract commands, attribution/licensing diligence, real 512x512 data inspection, and fail-closed vertical datum rules.
