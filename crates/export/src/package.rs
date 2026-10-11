@@ -517,10 +517,19 @@ pub fn write_3mf_atomic(
         let mut nonce = [0u8; 16];
         getrandom::fill(&mut nonce)
             .map_err(|e| invalid(format!("OS random staging identity failed: {e}")))?;
-        let token = nonce.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        let path =
-            destination.with_file_name(format!(".{file_name}.{}.{token}.staging", std::process::id()));
-        match std::fs::OpenOptions::new().create_new(true).write(true).open(&path) {
+        let token = nonce
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let path = destination.with_file_name(format!(
+            ".{file_name}.{}.{token}.staging",
+            std::process::id()
+        ));
+        match std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&path)
+        {
             Ok(file) => {
                 reserved = Some((path, file));
                 break;
