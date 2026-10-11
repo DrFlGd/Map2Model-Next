@@ -86,10 +86,18 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
         ||result.threeMfExported!==true||result.jobId!==payload.jobId
         ||result.selectionId!==job.selection.selectionId||result.sourceArchiveSha256!==job.sha)
        throw Error('EXPORT_FAILED: unverified source/consent result mismatch');
-     const bytes=await fs.readFile(destination);
+     const info=await fs.lstat(staging);
+     if(!info.isFile()||info.isSymbolicLink()||info.size>80*1024*1024)
+       throw Error('EXPORT_FAILED: temporary model is not an ordinary 3MF');
+     const bytes=await fs.readFile(staging);
      const sha=createHash('sha256').update(bytes).digest('hex');
      if(sha!==result.packageSha256||bytes.length!==result.bytes)
-       throw Error('HASH_MISMATCH: published local 3MF failed file verification');
+       throw Error('HASH_MISMATCH: native 3MF output altered');
+     if(controller.signal.aborted)throw Error('CANCELLED: before publication');
+     await fs.link(staging,destination);
+     const finalBytes=await fs.readFile(destination);
+     if(createHash('sha256').update(finalBytes).digest('hex')!==sha)
+       throw Error('HASH_MISMATCH: published 3MF checksum differs');
      return {canceled:false,experimentalOnly:true,productionGenerationReady:false,
        fileName:path.basename(destination),packageSha256:sha,
        sourceArchiveSha256:job.sha,candidateHeightsSha256:result.candidateHeightsSha256,
