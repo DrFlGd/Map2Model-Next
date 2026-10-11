@@ -47,6 +47,11 @@ fn execute(args: &[String]) -> Result<serde_json::Value, String> {
             if action == "decode" =>
         {
             let source: SourceDeclaration = read_json(Path::new(source_json))?;
+            // A production-shaped headless decode must pin the exact local file.
+            // A mutable provider URL or invented release label cannot replace a SHA.
+            if source.expected_archive_sha256.is_none() {
+                return Err("INVALID_SOURCE: headless decode requires expectedArchiveSha256 from independently recorded local acquisition".into());
+            }
             let selection: SelectionV1 = read_json(Path::new(selection_json))?;
             validation::validate_selection(&selection)?;
             let zoom: u8 = parse(zoom, "zoom")?;
