@@ -1,8 +1,8 @@
 {
   "name": "map2model-next",
   "private": true,
-  "version": "0.0.4",
-  "description": "Electron startup hotfix: original 512px synthetic PMTiles to 3MF Windows preview",
+  "version": "0.0.5",
+  "description": "Private local experimental terrain candidate-to-3MF integration draft",
   "engines": {
     "node": ">=22.16.0 <23"
   },
