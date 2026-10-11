@@ -24,16 +24,26 @@ function nativeEnginePath(){
   const binary=process.platform==='win32'?'map2model-engine.exe':'map2model-engine';
   return app.isPackaged?path.join(process.resourcesPath,'bin',binary):path.resolve(__dirname,'../../../target/release',binary);
 }
+function originalPmtilesFixturePath(){
+  return app.isPackaged?path.join(process.resourcesPath,'synthetic-terrain'):
+    path.resolve(__dirname,'../../../target/release/synthetic-terrain-input');
+}
+async function originalPmtilesAvailable(){
+  try {await fs.access(path.join(originalPmtilesFixturePath(),'complete.pmtiles'));return true;}
+  catch{return false;}
+}
 async function nativeEngineAvailable(){
   try{await fs.access(nativeEnginePath());return true;}catch{return false;}
 }
 async function state(){
   const syntheticAvailable=await nativeEngineAvailable();
+  const originalPmtilesAvailable=syntheticAvailable&&await originalPmtilesAvailable();
   return {appVersion:app.getVersion(),offline:true,networkEnabled:false,
     libraryLabel:prefs.library?path.basename(prefs.library):null,
     libraryConfigured:Boolean(prefs.library),
     engine:{status:syntheticAvailable?'synthetic-ready':'not-installed',canGenerate:false,
-      syntheticExportAvailable:syntheticAvailable},
+      syntheticExportAvailable:syntheticAvailable,
+      originalPmtilesExportAvailable:originalPmtilesAvailable},
     basemap:{status:'not-installed'},terrain:{status:'not-installed'}};
 }
 async function prefsPath(){return path.join(app.getPath('userData'),USERDATA_PREFS);}
@@ -90,6 +100,44 @@ async function installHandlers(){
   handler('engineHealth',async()=>({status:await nativeEngineAvailable()?'synthetic-ready':'not-installed',
     canGenerate:false,syntheticExportAvailable:await nativeEngineAvailable(),
     reason:'Real geographic sources are not authorized in this synthetic prototype'}));
+  handler('exportOriginalSyntheticPmtiles',async()=>{
+    if(!await nativeEngineAvailable()||!await originalPmtilesAvailable())
+      throw Error('DATA_MISSING: bundled original synthetic PMTiles source or engine is missing');
+    const answer=await dialog.showSaveDialog(window,{
+      title:'Export original SYNTHETIC PMTiles terrain as 3MF',
+      defaultPath:'Map2Model-Original-PMTiles-Synthetic.3mf',
+      filters:[{name:'3D Manufacturing Format',extensions:['3mf']}],
+      properties:['showOverwriteConfirmation']
+    });
+    if(answer.canceled||!answer.filePath)return {canceled:true};
+    const target=path.resolve(answer.filePath);
+    if(path.extname(target).toLowerCase()!=='.3mf')
+      throw Error('INVALID_REQUEST: only .3mf output is supported');
+    let stdout;
+    try {
+      ({stdout}=await execFileAsync(nativeEnginePath(),
+        ['--export-original-pmtiles',originalPmtilesFixturePath(),target],
+        {windowsHide:true,timeout:120000,maxBuffer:64*1024,encoding:'utf8'}));
+    } catch {
+      throw Error('EXPORT_FAILED: original synthetic PMTiles decoder or 3MF exporter failed');
+    }
+    let result;
+    try {result=JSON.parse(stdout);}catch{throw Error('EXPORT_FAILED: invalid native report');}
+    if(result.status!=='ok'||result.result?.synthetic!==true||
+        result.result?.originalPmtilesDecoded!==true||
+        result.result?.productionGenerationReady!==false||
+        result.result?.threeMfExported!==true)
+      throw Error('EXPORT_FAILED: native synthetic PMTiles result did not verify');
+    const bytes=await fs.readFile(target);
+    const sha=createHash('sha256').update(bytes).digest('hex');
+    if(sha!==result.result.packageSha256||bytes.length!==result.result.bytes)
+      throw Error('HASH_MISMATCH: published PMTiles-derived 3MF was altered');
+    return {canceled:false,synthetic:true,originalPmtilesDecoded:true,
+      fileName:path.basename(target),packageSha256:sha,sourceArchiveSha256:result.result.sourceArchiveSha256,
+      gridSha256:result.result.gridSha256,gridWidth:result.result.gridWidth,
+      gridHeight:result.result.gridHeight,vertices:result.result.vertices,
+      triangles:result.result.triangles,aabbMm:result.result.aabbMm,bytes:bytes.length};
+  });
   handler('exportSynthetic',async()=>{
     if(!await nativeEngineAvailable())throw Error('DATA_MISSING: packaged native engine is unavailable');
     const answer=await dialog.showSaveDialog(window,{
