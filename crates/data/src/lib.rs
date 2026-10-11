@@ -428,18 +428,30 @@ pub fn inspect_unverified_local_pmtiles(
 ) -> Result<serde_json::Value, String> {
     let original = fs::symlink_metadata(source_path)
         .map_err(|_| err("DATA_MISSING", "unverified PMTiles sample unavailable"))?;
-    if !original.is_file() || original.file_type().is_symlink()
-        || original.len() < HEADER_BYTES as u64 || original.len() > MAX_ARCHIVE_BYTES {
-        return Err(err("INVALID_SOURCE", "local sample must be a bounded ordinary PMTiles file"));
+    if !original.is_file()
+        || original.file_type().is_symlink()
+        || original.len() < HEADER_BYTES as u64
+        || original.len() > MAX_ARCHIVE_BYTES
+    {
+        return Err(err(
+            "INVALID_SOURCE",
+            "local sample must be a bounded ordinary PMTiles file",
+        ));
     }
-    let mut handle = OpenOptions::new().read(true).open(source_path)
+    let mut handle = OpenOptions::new()
+        .read(true)
+        .open(source_path)
         .map_err(|_| err("DATA_MISSING", "cannot open sample"))?;
-    let metadata = handle.metadata().map_err(|_| err("INVALID_SOURCE", "sample metadata unavailable"))?;
+    let metadata = handle
+        .metadata()
+        .map_err(|_| err("INVALID_SOURCE", "sample metadata unavailable"))?;
     if !metadata.is_file() || metadata.len() != original.len() {
         return Err(err("INVALID_SOURCE", "sample changed before inspection"));
     }
     let mut bytes = Vec::new();
-    Read::by_ref(&mut handle).take(MAX_ARCHIVE_BYTES + 1).read_to_end(&mut bytes)
+    Read::by_ref(&mut handle)
+        .take(MAX_ARCHIVE_BYTES + 1)
+        .read_to_end(&mut bytes)
         .map_err(|_| err("INVALID_SOURCE", "bounded sample read failed"))?;
     if bytes.len() as u64 != original.len() || bytes.len() as u64 > MAX_ARCHIVE_BYTES {
         return Err(err("INVALID_SOURCE", "sample changed during inspection"));
@@ -447,21 +459,34 @@ pub fn inspect_unverified_local_pmtiles(
     let updated = fs::symlink_metadata(source_path)
         .map_err(|_| err("DATA_MISSING", "sample removed during inspection"))?;
     if !updated.is_file() || updated.file_type().is_symlink() || updated.len() != original.len() {
-        return Err(err("INVALID_SOURCE", "sample path changed during inspection"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "sample path changed during inspection",
+        ));
     }
     let inspected = inspect(&bytes)?;
     let header = &inspected.header;
     let raw_metadata = decompress(
         section(&bytes, header.metadata.0, header.metadata.1, "metadata")?,
-        header.internal_compression, MAX_METADATA_BYTES)?;
+        header.internal_compression,
+        MAX_METADATA_BYTES,
+    )?;
     let metadata: serde_json::Value = serde_json::from_slice(&raw_metadata)
         .map_err(|_| err("INVALID_SOURCE", "unverified archive metadata invalid"))?;
     let sample = if let Some((z, x, y)) = requested_tile {
         let id = tile_id(z, x, y)?;
         let record = inspected.tiles.get(&id).ok_or_else(|| {
-            err("DATA_MISSING", "requested tile absent from actual PMTiles index")
+            err(
+                "DATA_MISSING",
+                "requested tile absent from actual PMTiles index",
+            )
         })?;
-        let encoded = section(&bytes, record.offset, u64::from(record.length), "sample tile")?;
+        let encoded = section(
+            &bytes,
+            record.offset,
+            u64::from(record.length),
+            "sample tile",
+        )?;
         let webp = decompress(encoded, header.tile_compression, MAX_TILE_BYTES)?;
         let tile = terrarium::decode_terrarium_webp(&webp)?;
         serde_json::json!({
@@ -474,7 +499,9 @@ pub fn inspect_unverified_local_pmtiles(
             "elevationSouthEastMeters": tile.height(511,511),
             "maskedPixelCount": tile.number_of_missing_pixels()
         })
-    } else { serde_json::Value::Null };
+    } else {
+        serde_json::Value::Null
+    };
     Ok(serde_json::json!({
         "inspectionKind": "UnverifiedLocalPMTilesFormatV1",
         "archiveSha256": digest(&bytes),
