@@ -90,3 +90,20 @@ jobs:
             .m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.md
             .m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.manifest.json
             Cargo.lock
+
+  cross-platform-byte-identity:
+    needs: synthetic-3mf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch independently produced Ubuntu and Windows 3MF and NOTICE artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: a3-02-rust-3mf-*
+          path: ./ci-platform-artifacts
+          merge-multiple: false
+      - name: Require byte-identical 3MF, Cargo.lock and shipped NOTICE text/manifest
+        run: |
+          python crates/export/tests/cross_platform_artifacts.py \
+            ci-platform-artifacts/a3-02-rust-3mf-ubuntu-latest \
+            ci-platform-artifacts/a3-02-rust-3mf-windows-latest
