@@ -427,6 +427,59 @@ mod tests {
         result.unwrap();
     }
     #[test]
+    fn actual_512_webp_selection_boundary_neighbors_are_checked_before_sampling() {
+        // A real 512x512 lossless Terrarium WebP is present at z12 x1091 y1554.
+        // Four selections lie wholly on that side of a geographic tile seam,
+        // yet the closed SelectionV1 rectangle includes the absent neighbor.
+        // A decoder that samples only the positive/down tile at a seam must
+        // NEVER mark the full closed rectangle as Ready when the other is absent.
+        let root = temp();
+        fs::create_dir_all(&root).unwrap();
+        let run = || -> Result<(), String> {
+            let mut archive = fixture_pmtiles(&webp_alpha_fixture(false));
+            put_i32(&mut archive, 102, -841120000);
+            put_i32(&mut archive, 106, 397000000);
+            put_i32(&mut archive, 110, -840000000);
+            put_i32(&mut archive, 114, 398000000);
+            let path = root.join("one-512px-seam-tile.pmtiles");
+            fs::write(&path, archive).unwrap();
+            let source = import_local_pmtiles(&path, &root.join("registry"), &policy())?;
+            let n = 4096.;
+            let west_lon = -180. + 1091. * 360. / n;
+            let east_lon = -180. + 1092. * 360. / n;
+            let north_lat = (std::f64::consts::PI * (1. - 2. * 1554. / n))
+                .sinh()
+                .atan()
+                .to_degrees();
+            let south_lat = (std::f64::consts::PI * (1. - 2. * 1555. / n))
+                .sinh()
+                .atan()
+                .to_degrees();
+            let cases = [
+                ("west", [west_lon, 39.74, west_lon + 0.001, 39.741]),
+                ("east", [east_lon - 0.001, 39.74, east_lon, 39.741]),
+                ("north", [-84.09, north_lat - 0.001, -84.089, north_lat]),
+                ("south", [-84.09, south_lat, -84.089, south_lat + 0.001]),
+            ];
+            for (edge, bbox) in cases {
+                let mut selected = selection();
+                selected.bbox = bbox;
+                selected.selection_id =
+                    format!("sel-{}", &canonical::selection_digest(&selected)?[..32]);
+                validation::validate_selection(&selected)?;
+                let err = decode_selection_grid(&source, &selected, 12).unwrap_err();
+                assert!(
+                    err.starts_with("DATA_MISSING"),
+                    "{edge} edge must require its missing adjacent XYZ tile, got {err}"
+                );
+            }
+            Ok(())
+        };
+        let result = run();
+        let _ = fs::remove_dir_all(root);
+        result.unwrap();
+    }
+    #[test]
     fn alpha_nodata_fails_closed_and_wrong_size_is_not_elevation() {
         let root = temp();
         fs::create_dir_all(&root).unwrap();
