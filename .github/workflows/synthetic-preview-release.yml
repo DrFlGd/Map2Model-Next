@@ -31,6 +31,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      - name: Prepare and verify native dependency notices for packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python crates/export/tests/cargo_license_texts.py
+          if($LASTEXITCODE -ne 0){throw 'Cannot collect Rust dependency notices'}
+          python crates/export/tests/notice_shipping.py stage target/release
+          if($LASTEXITCODE -ne 0){throw 'Native license candidate staging failed'}
+          python crates/export/tests/notice_shipping.py verify target/release
+          if($LASTEXITCODE -ne 0){throw 'Native license candidate verification failed'}
       - name: Verify merged synthetic mesh and draft 3MF writer
         run: |
           cargo fmt --all -- --check
@@ -68,16 +78,6 @@ jobs:
           $json | Set-Content -Encoding utf8 native-original-pmtiles-report.json
           python tests/verify_original_pmtiles_3mf.py $export native-original-pmtiles-report.json
           if($LASTEXITCODE -ne 0){throw 'Independent original PMTiles 3MF validation failed'}
-      - name: Prepare and verify native dependency notices for packaging
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          python crates/export/tests/cargo_license_texts.py
-          if($LASTEXITCODE -ne 0){throw 'Cannot collect Rust dependency notices'}
-          python crates/export/tests/notice_shipping.py stage target/release
-          if($LASTEXITCODE -ne 0){throw 'Native license candidate staging failed'}
-          python crates/export/tests/notice_shipping.py verify target/release
-          if($LASTEXITCODE -ne 0){throw 'Native license candidate verification failed'}
       - name: Install Electron and pinned UI tools
         run: npm install --no-audit --no-fund
       - name: Test offline desktop shell and bundle renderer
