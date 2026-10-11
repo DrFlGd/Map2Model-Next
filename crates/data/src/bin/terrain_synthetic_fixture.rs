@@ -12,7 +12,7 @@ use std::path::Path;
 const Z: u8 = 12;
 const WIDTH: usize = 512;
 // Original, known purely test-space terrain function in signed meters:
-// height(global_col,global_row) = -120 + global_col/8 + global_row/16.
+// height(global_col,global_row) = -96 + global_col/8 + global_row/16.
 const SOURCE: &str = "Map2Model original synthetic z12 raster; NOT Mapterhorn";
 const KNOWN_SYNTHETIC_DATUM: &str = "SYNTHETIC-RELATIVE-METERS";
 
@@ -59,7 +59,7 @@ fn encoded_webp(x: u32, y: u32, masked: bool) -> Result<Vec<u8>, String> {
         for col in 0..WIDTH {
             let global_col = (x - 1091) as usize * WIDTH + col;
             let global_row = (y - 1554) as usize * WIDTH + row;
-            let meters = -120. + global_col as f64 / 8. + global_row as f64 / 16.;
+            let meters = -96. + global_col as f64 / 8. + global_row as f64 / 16.;
             let shifted = meters + 32768.;
             let integral = shifted.floor() as u32;
             let idx = (row * WIDTH + col) * stride;
