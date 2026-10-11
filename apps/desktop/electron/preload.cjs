@@ -14,5 +14,8 @@ contextBridge.exposeInMainWorld('map2model',{
   saveProject:project=>invoke('saveProject',project),
   engineHealth:()=>invoke('engineHealth'),
   exportSynthetic:()=>invoke('exportSynthetic'),
-  exportOriginalSyntheticPmtiles:()=>invoke('exportOriginalSyntheticPmtiles')
+  exportOriginalSyntheticPmtiles:()=>invoke('exportOriginalSyntheticPmtiles'),
+  selectExperimentalSource:selection=>invoke('selectExperimentalSource',{selection}),
+  exportExperimentalLocal:(jobId,selectionId,accepted)=>invoke('exportExperimentalLocal',{jobId,selectionId,accepted}),
+  discardExperimentalSource:jobId=>invoke('discardExperimentalSource',{jobId})
 });
