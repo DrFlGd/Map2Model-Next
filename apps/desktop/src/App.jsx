@@ -214,6 +214,7 @@ export function App(){
     <div className="readiness"><span>Synthetic terrain engine</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
     <div className="readiness"><span>Synthetic 3MF exporter</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
     <div className="notice">Two demos: the existing fixed synthetic mesh, or an ORIGINAL four-tile 512px WebP PMTiles input decoded into a real ElevationGridV1 before mesh/3MF export. Both are test data only. The drawn map rectangle DOES NOT control either demo. Real Mapterhorn source remains unverified and disabled.</div>
+    <button onClick={chooseExperimental} disabled={busy||!selection||!system.engine?.experimentalLocalAvailable}>Choose private local PMTiles (experimental)</button>
     <button onClick={exportOriginalPmtiles}
       disabled={busy||!system.engine?.originalPmtilesExportAvailable}
       className="generate">{busy?'Working…':'Export ORIGINAL SYNTHETIC PMTiles terrain 3MF'}</button>
