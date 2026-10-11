@@ -75,3 +75,38 @@ test('desktop defaults to a bundled local map style and blocks runtime external 
  assert(html.includes("default-src 'self'"));
  assert(!html.includes('unpkg.com')&&!html.includes('fonts.googleapis.com'));
 });
+
+test('production Electron state handler enables original PMTiles export only when engine and fixture are present',async()=>{
+ // Evaluate the REAL main-process state() function with inert injected Electron
+ // and filesystem availability probes, not an independent rewrite/mock.
+ // This regression specifically catches a TDZ shadow of originalPmtilesAvailable.
+ const {readFileSync}=await import('node:fs');
+ const src=readFileSync('apps/desktop/electron/main.cjs','utf8');
+ const start=src.indexOf('async function state(){');
+ const end=src.indexOf('\nasync function prefsPath()',start);
+ assert(start>=0&&end>start,'actual Electron state() boundary must be found');
+ const actualState=src.slice(start,end);
+ const run=new Function('nativeEngineAvailable','originalPmtilesAvailable','app','prefs','path',
+   actualState+'\nreturn state();');
+ const app={getVersion:()=>'0.0.4'};
+ const prefs={library:'C:/Terrain Projects'};
+ const ready=await run(async()=>true,async()=>true,app,prefs,path);
+ assert.equal(ready.appVersion,'0.0.4');
+ assert.equal(ready.engine.syntheticExportAvailable,true);
+ assert.equal(ready.engine.originalPmtilesExportAvailable,true);
+ assert.equal(ready.engine.canGenerate,false,'real geographic generation remains prohibited');
+ assert.equal(ready.offline,true);
+ assert.equal(ready.networkEnabled,false);
+ const missingFixture=await run(async()=>true,async()=>false,app,prefs,path);
+ assert.equal(missingFixture.engine.syntheticExportAvailable,true);
+ assert.equal(missingFixture.engine.originalPmtilesExportAvailable,false);
+ let called=false;
+ const missingNative=await run(async()=>false,async()=>{called=true;return true;},app,prefs,path);
+ assert.equal(missingNative.engine.syntheticExportAvailable,false);
+ assert.equal(missingNative.engine.originalPmtilesExportAvailable,false);
+ assert.equal(called,false,'do not probe bundled fixture when engine is unavailable');
+ const preload=readFileSync('apps/desktop/electron/preload.cjs','utf8');
+ assert(src.includes("handler('state',async()=>state())"));
+ assert(src.includes("handler('exportOriginalSyntheticPmtiles'"));
+ assert(preload.includes("exportOriginalSyntheticPmtiles:()=>invoke('exportOriginalSyntheticPmtiles')"));
+});
