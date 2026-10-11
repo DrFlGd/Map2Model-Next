@@ -1,8 +1,8 @@
 {
   "name": "map2model-next",
   "private": true,
-  "version": "0.0.1",
-  "description": "Local-first map-to-3MF application, Windows desktop shell",
+  "version": "0.0.2",
+  "description": "Local-first Map2Model Next synthetic terrain to 3MF Windows preview",
   "engines": {
     "node": ">=22.16.0 <23"
   },
@@ -55,7 +55,13 @@
           ]
         }
       ]
-    }
+    },
+    "extraResources": [
+      {
+        "from": "target/release/map2model-engine.exe",
+        "to": "bin/map2model-engine.exe"
+      }
+    ]
   },
   "dependencies": {
     "@noble/hashes": "1.8.0"
