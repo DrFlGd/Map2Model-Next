@@ -215,6 +215,15 @@ export function App(){
     <div className="readiness"><span>Synthetic 3MF exporter</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
     <div className="notice">Two demos: the existing fixed synthetic mesh, or an ORIGINAL four-tile 512px WebP PMTiles input decoded into a real ElevationGridV1 before mesh/3MF export. Both are test data only. The drawn map rectangle DOES NOT control either demo. Real Mapterhorn source remains unverified and disabled.</div>
     <button onClick={chooseExperimental} disabled={busy||!selection||!system.engine?.experimentalLocalAvailable}>Choose private local PMTiles (experimental)</button>
+    {experimentalSource?<div className="detail-card" role="group" aria-label="Experimental source consent">
+      <p><strong>EXPERIMENTAL — UNVERIFIED · PRIVATE LOCAL USE</strong></p>
+      <p>{experimentalSource.fileName} · {experimentalSource.sourceArchiveSha256}</p>
+      <p>Vertical datum and licensing: UNKNOWN. Archive attribution: {experimentalSource.sourceAttributionFromArchive||'Not supplied'}</p>
+      <label><input type="checkbox" checked={experimentalAccepted} onChange={e=>setExperimentalAccepted(e.target.checked)}/>
+        I acquired this source under applicable terms, accept unverified elevations for this job only, and will not redistribute without rights review.
+      </label>
+      <button onClick={exportExperimental} disabled={busy||!experimentalAccepted}>Export PRIVATE experimental 3MF</button>
+    </div>:null}
     <button onClick={exportOriginalPmtiles}
       disabled={busy||!system.engine?.originalPmtilesExportAvailable}
       className="generate">{busy?'Working…':'Export ORIGINAL SYNTHETIC PMTiles terrain 3MF'}</button>
