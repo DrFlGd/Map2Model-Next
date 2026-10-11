@@ -238,3 +238,55 @@ fn readback_matches_checked_in_a3_01_reference_manifest() {
         );
     }
 }
+
+#[test]
+fn independent_python_standard_library_reopens_actual_rust_generated_3mf() {
+    use std::process::Command;
+
+    let (grid, request, source) = fixtures();
+    let mesh = build_mesh(&grid, &request).unwrap();
+    let artifact = export_3mf(&mesh, &grid, &request, &source).unwrap();
+    let path = std::env::temp_dir().join(format!(
+        "m2m-rust-generated-independent-{}-{}.3mf",
+        std::process::id(),
+        &artifact.package_sha256[..14]
+    ));
+    std::fs::write(&path, &artifact.bytes).unwrap();
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/independent_3mf.py");
+    let fixture = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../engine/fixtures/A3-01.reference.json"
+    );
+    let mut output = None;
+    for executable in ["python", "python3"] {
+        match Command::new(executable).args([script]).arg(&path).arg(fixture).output() {
+            Ok(result) => {
+                output = Some(result);
+                break;
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => panic!("independent Python 3MF validator could not launch: {err}"),
+        }
+    }
+    let output = output.expect("Python 3 must be installed for external 3MF readback");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "Python ZIP/XML/mesh validator rejected actual Rust-generated 3MF: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .expect("independent 3MF verifier did not return valid JSON");
+    assert_eq!(report["status"], "passed");
+    assert_eq!(report["validatorId"], "python-stdlib-zipfile-etree-mesh-v1");
+    assert_eq!(report["canonicalGeometrySha256"], artifact.canonical_geometry_sha256);
+    assert_eq!(report["packageSha256"], artifact.package_sha256);
+    assert_eq!(report["provenanceSha256"], artifact.provenance_sha256);
+    assert_eq!(report["vertices"], 24);
+    assert_eq!(report["triangles"], 44);
+    assert_eq!(report["connectedComponents"], 1);
+    assert_eq!(report["undirectedManifoldEdges"], 66);
+    assert_eq!(report["sourceLicenseIdentifier"], "CC0-1.0");
+    assert_eq!(report["aabbMm"], serde_json::json!([0.0,0.0,0.0,180.0,80.0,204.0]));
+    assert!((report["volumeMm3"].as_f64().unwrap() - 1_449_600.0).abs() < 1e-6);
+}
