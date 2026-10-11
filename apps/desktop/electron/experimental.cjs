@@ -45,3 +45,56 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      verticalDatumStatus:'unknown',sourceRightsStatus:'unknown',
      productionGenerationReady:false,redistributionApproved:false,policyVersion:POLICY};
  });
+ handler('exportExperimentalLocal',async payload=>{
+   if(payload?.accepted!==true||typeof payload.jobId!=='string')
+     throw Error('INVALID_REQUEST: explicit unchecked-by-default consent required');
+   const job=pending.get(payload.jobId);
+   pending.delete(payload.jobId); // consumed exactly once, even on cancellation/failure
+   if(!job||Date.now()>job.expires)
+     throw Error('INVALID_REQUEST: source selection or job consent expired');
+   if(payload.selectionId!==job.selection.selectionId)
+     throw Error('INVALID_SELECTION: source/selection consent mismatch');
+   const answer=await dialog.showSaveDialog(getWindow(),{
+     title:'Save PRIVATE EXPERIMENTAL, unverified terrain 3MF',
+     defaultPath:'Map2Model-PRIVATE-EXPERIMENTAL.3mf',
+     filters:[{name:'3D Manufacturing Format',extensions:['3mf']}],
+     properties:['showOverwriteConfirmation']});
+   if(answer.canceled||!answer.filePath)return {canceled:true};
+   const destination=path.resolve(answer.filePath);
+   if(path.extname(destination).toLowerCase()!=='.3mf')
+     throw Error('INVALID_REQUEST: only native .3mf output allowed');
+   const temp=await fs.mkdtemp(path.join(app.getPath('temp'),'m2m-private-job-'));
+   try{
+     const selectionFile=path.join(temp,'selection.json');
+     await fs.writeFile(selectionFile,JSON.stringify(job.selection),{mode:0o600,flag:'wx'});
+     let stdout;
+     try{
+       ({stdout}=await runBinary(nativeEnginePath(),[
+         '--export-local-experimental',job.path,job.sha,selectionFile,
+         String(job.zoom),payload.jobId,POLICY,destination
+       ],{windowsHide:true,timeout:120000,maxBuffer:65536,encoding:'utf8'}));
+     }catch{throw Error('EXPORT_FAILED: native experimental 3MF generation failed');}
+     let response;
+     try{response=JSON.parse(stdout);}catch{throw Error('EXPORT_FAILED: invalid native report');}
+     const result=response.result;
+     if(response.status!=='ok'||result?.experimentalOnly!==true
+        ||result.productionGenerationReady!==false||result.redistributionApproved!==false
+        ||result.threeMfExported!==true||result.jobId!==payload.jobId
+        ||result.selectionId!==job.selection.selectionId||result.sourceArchiveSha256!==job.sha)
+       throw Error('EXPORT_FAILED: unverified source/consent result mismatch');
+     const bytes=await fs.readFile(destination);
+     const sha=createHash('sha256').update(bytes).digest('hex');
+     if(sha!==result.packageSha256||bytes.length!==result.bytes)
+       throw Error('HASH_MISMATCH: published local 3MF failed file verification');
+     return {canceled:false,experimentalOnly:true,productionGenerationReady:false,
+       fileName:path.basename(destination),packageSha256:sha,
+       sourceArchiveSha256:job.sha,candidateHeightsSha256:result.candidateHeightsSha256,
+       vertices:result.vertices,triangles:result.triangles,aabbMm:result.aabbMm};
+   }finally{await fs.rm(temp,{recursive:true,force:true});}
+ });
+ handler('discardExperimentalSource',async payload=>{
+   if(typeof payload?.jobId==='string')pending.delete(payload.jobId);
+   return {discarded:true};
+ });
+}
+module.exports={registerExperimentalHandlers};
