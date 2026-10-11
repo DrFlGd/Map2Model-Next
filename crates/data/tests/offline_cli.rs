@@ -70,7 +70,7 @@ fn synthetic_fixture() -> Vec<u8> {
 fn attribution_only_sample_and_mismatched_header_zoom_are_format_inspectable_but_not_importable() {
     let root = private_root();
     fs::create_dir_all(&root).unwrap();
-    let result = (|| -> Result<(), String> {
+    let verify_fixture = || -> Result<(), String> {
         // Fabricate exactly the real extract's problematic metadata shape;
         // NO third-party source or original Mapterhorn pixels are committed.
         let mut archive = synthetic_fixture();
@@ -148,7 +148,8 @@ fn attribution_only_sample_and_mismatched_header_zoom_are_format_inspectable_but
         assert!(String::from_utf8_lossy(&decode.stderr).contains("explicit Terrarium metadata"));
         assert!(!rejected_grid.exists());
         Ok(())
-    })();
+    };
+    let result = verify_fixture();
     let _ = fs::remove_dir_all(root);
     result.unwrap();
 }
