@@ -66,6 +66,88 @@ fn synthetic_fixture() -> Vec<u8> {
     archive.extend(webp);
     archive
 }
+#[test]
+fn attribution_only_sample_and_mismatched_header_zoom_are_format_inspectable_but_not_importable() {
+    let root = private_root();
+    fs::create_dir_all(&root).unwrap();
+    let result = (|| -> Result<(), String> {
+        // Fabricate exactly the real extract's problematic metadata shape;
+        // NO third-party source or original Mapterhorn pixels are committed.
+        let mut archive = synthetic_fixture();
+        let metadata_offset = u64::from_le_bytes(archive[24..32].try_into().unwrap()) as usize;
+        let metadata_len = u64::from_le_bytes(archive[32..40].try_into().unwrap()) as usize;
+        let attribution_only = br#"{"attribution":"Original synthetic source"}"#;
+        archive.splice(
+            metadata_offset..metadata_offset + metadata_len,
+            attribution_only.iter().copied(),
+        );
+        u64le(&mut archive, 32, attribution_only.len() as u64);
+        let tile_offset = metadata_offset + attribution_only.len();
+        u64le(&mut archive, 40, tile_offset as u64);
+        u64le(&mut archive, 56, tile_offset as u64);
+        archive[101] = 1; // Header max z1 but the only actual tile remains z0.
+        let path = root.join("synthetic-attribution-only.pmtiles");
+        fs::write(&path, archive).unwrap();
+        let inspected = exec(&["inspect", file_str(&path), "0", "0", "0"]);
+        assert!(
+            inspected.status.success(),
+            "inspect failed: {}",
+            String::from_utf8_lossy(&inspected.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&inspected.stdout).unwrap();
+        assert_eq!(report["metadataExplicitlyDeclaresTerrarium"], false);
+        assert_eq!(report["headerMinZoom"], 0);
+        assert_eq!(report["headerMaxZoom"], 1);
+        assert_eq!(report["actualIndexedMinZoom"], 0);
+        assert_eq!(report["actualIndexedMaxZoom"], 0);
+        assert_eq!(report["headerZoomRangeConsistent"], false);
+        assert_eq!(report["indexedTileCount"], 1);
+        assert_eq!(report["tileSample"]["webpWidth"], 512);
+        assert_eq!(report["tileSample"]["elevationCenterMeters"], 0.);
+        assert_eq!(report["sourceLicenseVerified"], false);
+        assert_eq!(report["verticalDatumVerified"], false);
+        assert_eq!(report["productionGenerationReady"], false);
+
+        let source = root.join("untrusted-policy.json");
+        fs::write(
+            &source,
+            serde_json::to_vec(&serde_json::json!({
+                "sourceName": "Original synthetic attribution-only format fixture",
+                "releaseId": "synthetic-v1",
+                "archiveId": "header-z1-index-z0",
+                "expectedArchiveSha256": report["archiveSha256"],
+                "verticalDatumId": "SYNTHETIC-RELATIVE-METERS",
+                "verticalDatumStatus": "known",
+                "licenseIdentifier": "CC0-1.0",
+                "attribution": "Original artificial pixel values",
+                "nominalGroundSampleMeters": 10.,
+                "nativeResolutionSource": "Synthetic source",
+                "uncertaintyMeters": 0.,
+                "decoderVersion": "map2model-data/0.0.1"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let selection = root.join("selection.json");
+        fs::write(
+            &selection,
+            include_bytes!("../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"),
+        )
+        .unwrap();
+        let rejected_grid = root.join("must-not-create-grid.json");
+        let decode = exec(&[
+            "decode", file_str(&path), file_str(&root.join("registry")),
+            file_str(&source), file_str(&selection), "0", file_str(&rejected_grid)
+        ]);
+        assert!(!decode.status.success());
+        assert!(String::from_utf8_lossy(&decode.stderr).contains("explicit Terrarium metadata"));
+        assert!(!rejected_grid.exists());
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(root);
+    result.unwrap();
+}
+
 fn exec(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_terrain_offline"))
         .args(args)
