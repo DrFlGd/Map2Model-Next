@@ -102,7 +102,11 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
        fileName:path.basename(destination),packageSha256:sha,
        sourceArchiveSha256:job.sha,candidateHeightsSha256:result.candidateHeightsSha256,
        vertices:result.vertices,triangles:result.triangles,aabbMm:result.aabbMm};
-   }finally{await fs.rm(temp,{recursive:true,force:true});}
+   }finally{
+     running.delete(payload.jobId);
+     await fs.unlink(staging).catch(()=>{});
+     await fs.rm(temp,{recursive:true,force:true});
+   }
  });
  handler('discardExperimentalSource',async payload=>{
    if(typeof payload?.jobId==='string')pending.delete(payload.jobId);
