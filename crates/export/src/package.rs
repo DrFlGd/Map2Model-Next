@@ -562,3 +562,126 @@ pub fn write_3mf_atomic(
     let _ = std::fs::remove_file(&temporary);
     outcome
 }
+
+
+/// G2 local-only experimental ZIP branch. This accepts NO verified source
+/// manifest and never changes the strict verified export_3mf preflight.
+pub fn export_experimental_core(
+    result: &BuildOutput,
+    provenance: &serde_json::Value,
+) -> Result<Exported3mf, ExportError> {
+    let field = |k: &str| provenance.get(k);
+    for (k, v) in [
+        ("experimentalOnly", true),
+        ("localPersonalUseOnly", true),
+        ("ownerAcknowledgedUnverified", true),
+        ("encodingAuthenticated", false),
+        ("sourceLicenseVerified", false),
+        ("nativeResolutionVerified", false),
+        ("redistributionApproved", false),
+        ("productionGenerationReady", false),
+    ] {
+        if field(k).and_then(serde_json::Value::as_bool) != Some(v) {
+            return Err(invalid(format!("experimental warning flag {k} is missing or forged")));
+        }
+    }
+    if field("verticalDatumStatus").and_then(serde_json::Value::as_str) != Some("unknown")
+        || field("kind").and_then(serde_json::Value::as_str) != Some("Experimental3mfProvenanceV1")
+        || field("acknowledgementPolicyVersion").and_then(serde_json::Value::as_str).is_none()
+    {
+        return Err(invalid("unverified source provenance disclosure is missing"));
+    }
+    for key in ["sourceArchiveSha256", "candidateHeightsSha256", "jobId", "selectionId"] {
+        if field(key).and_then(serde_json::Value::as_str).is_none_or(str::is_empty) {
+            return Err(invalid(format!("missing candidate provenance {key}")));
+        }
+    }
+    let source_sha = field("sourceArchiveSha256").and_then(serde_json::Value::as_str).unwrap_or("");
+    let sample_sha = field("candidateHeightsSha256").and_then(serde_json::Value::as_str).unwrap_or("");
+    if [source_sha,sample_sha].iter().any(|s| s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())) {
+        return Err(invalid("candidate source/sample hash is malformed"));
+    }
+    let geometry = map2model_mesh::inspect_mesh(&result.mesh)?;
+    if geometry.vertices != result.geometry.vertices || geometry.triangles != result.geometry.triangles
+        || !geometry.closed || !geometry.oriented || geometry.non_manifold_edges != 0
+    {
+        return Err(invalid("candidate mesh is not validated"));
+    }
+    let triangles = result.mesh.triangles.iter().map(|t| MeshTriangle {
+        part_id: "terrain".into(), indices: *t,
+    }).collect::<Vec<_>>();
+    let canonical = canonical_mesh_digest(&result.mesh.vertices_mm, &triangles)
+        .map_err(|e| invalid(format!("experimental geometry hash failed: {e}")))?;
+    if canonical != result.canonical_geometry_sha256 {
+        return Err(ExportError::new("HASH_MISMATCH", "experimental geometry identity changed"));
+    }
+    let mut provenance = provenance.clone();
+    provenance["canonicalGeometrySha256"] = serde_json::Value::String(canonical.clone());
+    let bytes_provenance = serde_json::to_vec(&provenance)
+        .map_err(|_| invalid("cannot encode experimental provenance"))?;
+    if bytes_provenance.len() > 16 * 1024 {
+        return Err(invalid("experimental source provenance too large"));
+    }
+    let provenance_sha = format!("{:x}", Sha256::digest(&bytes_provenance));
+    let warning = "EXPERIMENTAL — USER-SUPPLIED TERRAIN. Source permissions not independently verified; vertical datum and native accuracy unknown. Private local evaluation only; third-party license and attribution requirements still apply. Not a certified elevation model. Redistribution not approved by Map2Model Next.";
+    let attribution = field("sourceAttributionFromArchive").and_then(serde_json::Value::as_str)
+        .unwrap_or("Source attribution not provided in archive");
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    xml.push_str("<model xmlns=\"http://schemas.microsoft.com/3dmanufacturing/core/2015/02\" unit=\"millimeter\">");
+    metadata(&mut xml,"SourceStatus","EXPERIMENTAL — PRIVATE LOCAL USE — UNVERIFIED");
+    metadata(&mut xml,"SourceWarning",warning);
+    metadata(&mut xml,"VerticalDatumStatus","unknown");
+    metadata(&mut xml,"SourceRightsStatus","unknown; not independently verified");
+    metadata(&mut xml,"SourceAttribution",attribution);
+    metadata(&mut xml,"SourceArchiveSHA256",source_sha);
+    metadata(&mut xml,"CandidateHeightsSHA256",sample_sha);
+    metadata(&mut xml,"CanonicalGeometrySHA256",&canonical);
+    metadata(&mut xml,"ProvenanceSHA256",&provenance_sha);
+    xml.push_str("<resources><object id=\"1\" type=\"model\"><mesh><vertices>");
+    for v in &result.mesh.vertices_mm {
+        if !v.iter().all(|x| x.is_finite() && x.abs() < 1_000_000.) {
+            return Err(invalid("invalid candidate vertex coordinate"));
+        }
+        xml.push_str(&format!("<vertex x=\"{:.12}\" y=\"{:.12}\" z=\"{:.12}\"/>",v[0],v[1],v[2]));
+    }
+    xml.push_str("</vertices><triangles>");
+    for [a,b,c] in &result.mesh.triangles {
+        xml.push_str(&format!("<triangle v1=\"{a}\" v2=\"{b}\" v3=\"{c}\"/>"));
+    }
+    xml.push_str("</triangles></mesh></object></resources><build><item objectid=\"1\"/></build></model>");
+    if xml.len() > MAX_PART_SIZE { return Err(invalid("experimental Core model XML oversized")); }
+    let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+    zip_add(&mut zip,"[Content_Types].xml",CONTENT_TYPES.as_bytes())?;
+    zip_add(&mut zip,"_rels/.rels",RELATIONSHIPS.as_bytes())?;
+    zip_add(&mut zip,"3D/3dmodel.model",xml.as_bytes())?;
+    zip_add(&mut zip,"Metadata/map2model.provenance.json",&bytes_provenance)?;
+    let bytes = zip.finish().map_err(|e| invalid(format!("experimental ZIP: {e}")))?.into_inner();
+    if bytes.len() > MAX_PACKAGE_SIZE { return Err(invalid("experimental 3MF exceeds ZIP budget")); }
+    let prepared = PreparedExport {
+        provenance_bytes: bytes_provenance,
+        provenance_sha256: provenance_sha,
+        canonical_geometry_sha256: canonical,
+        model_part: MODEL_PART,
+        provenance_part: PROVENANCE_PART,
+        core_spec_version: "1.4.0",
+    };
+    let inspected = inspect_3mf(&bytes,result,&prepared)?;
+    // The independent readback must retain the mandatory warning in Core XML.
+    let mut archive = ZipArchive::new(Cursor::new(bytes.as_slice()))
+        .map_err(|_| invalid("cannot independently read experimental ZIP"))?;
+    let model = read_part(&mut archive,"3D/3dmodel.model")?;
+    let text = std::str::from_utf8(&model).map_err(|_| invalid("non-UTF8 candidate XML"))?;
+    if !text.contains("EXPERIMENTAL") || !text.contains("unknown") ||
+        !text.contains(&provenance_sha) {
+        return Err(invalid("experimental Core XML lost disclaimer"));
+    }
+    Ok(Exported3mf {
+        bytes,
+        package_sha256: inspected.package_sha256,
+        provenance_sha256: inspected.provenance_sha256,
+        canonical_geometry_sha256: inspected.canonical_geometry_sha256,
+        vertices: inspected.vertices,
+        triangles: inspected.triangles,
+        aabb_mm: inspected.aabb_mm,
+    })
+}
