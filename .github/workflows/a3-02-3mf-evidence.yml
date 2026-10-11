@@ -30,7 +30,7 @@ jobs:
           python-version: '3.11'
       - name: Install pinned third-party independent 3MF parser
         shell: bash
-        run: python -m pip install --disable-pip-version-check --no-cache-dir 'trimesh==4.11.1' 'numpy==2.3.5' 'lxml==6.1.1'
+        run: python -m pip install --disable-pip-version-check --no-cache-dir 'trimesh==4.11.1' 'numpy==2.3.5' 'lxml==6.1.1' 'networkx==3.6.1'
       - name: Generate actual signed Rust 3MF and SHA evidence
         shell: bash
         run: cargo run -p map2model-export --example synthetic_3mf -- ./synthetic-terrain.3mf | tee rust-export-report.txt
