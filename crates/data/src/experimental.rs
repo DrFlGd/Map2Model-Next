@@ -3,12 +3,11 @@
 //! NOT a TerrainSourceManifestV1, NOT an ElevationGridV1, never a registered
 //! trusted source, and never source-rights or known-vertical-datum evidence.
 //! The opt-in and exact SHA protect against accidental production-path reuse.
-use crate::{
-    decompress, digest, err, inspect_archive, section, tile_id, tile_id_in_zoom,
-    valid_webp, MAX_ARCHIVE_BYTES, MAX_COVERAGE_QUERY_TILES, MAX_METADATA_BYTES,
-    MAX_TILE_BYTES,
-};
 use crate::terrarium::{decode_terrarium_webp, tile_coordinate, TerrariumTile};
+use crate::{
+    decompress, digest, err, inspect_archive, section, tile_id, tile_id_in_zoom, valid_webp,
+    MAX_ARCHIVE_BYTES, MAX_COVERAGE_QUERY_TILES, MAX_METADATA_BYTES, MAX_TILE_BYTES,
+};
 use map2model_contracts::{validation, SelectionV1};
 use sha2::{Digest, Sha256};
 use std::{
@@ -47,7 +46,10 @@ fn read_private_source(source: &Path) -> Result<Vec<u8>, String> {
         .metadata()
         .map_err(|_| err("INVALID_SOURCE", "cannot stat opened experimental source"))?;
     if !opened.is_file() || opened.len() != info.len() {
-        return Err(err("INVALID_SOURCE", "experimental source changed before read"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "experimental source changed before read",
+        ));
     }
     let mut bytes = Vec::new();
     Read::by_ref(&mut file)
@@ -55,7 +57,10 @@ fn read_private_source(source: &Path) -> Result<Vec<u8>, String> {
         .read_to_end(&mut bytes)
         .map_err(|_| err("INVALID_SOURCE", "bounded experimental read failed"))?;
     if bytes.len() as u64 != info.len() || bytes.len() as u64 > MAX_ARCHIVE_BYTES {
-        return Err(err("INVALID_SOURCE", "experimental source changed during read"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "experimental source changed during read",
+        ));
     }
     let after = fs::symlink_metadata(source)
         .map_err(|_| err("DATA_MISSING", "experimental source disappeared"))?;
@@ -81,36 +86,54 @@ pub fn decode_experimental_local_pmtiles(
         ));
     }
     if expected_sha256.len() != 64
-        || !expected_sha256.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+        || !expected_sha256
+            .bytes()
+            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
     {
-        return Err(err("INVALID_SOURCE", "expected source SHA-256 must be lowercase hex"));
+        return Err(err(
+            "INVALID_SOURCE",
+            "expected source SHA-256 must be lowercase hex",
+        ));
     }
     validation::validate_selection(selection)?;
     let bytes = read_private_source(file)?;
     let source_sha = digest(&bytes);
     if source_sha != expected_sha256 {
-        return Err(err("HASH_MISMATCH", "experimental file differs from chosen exact SHA"));
+        return Err(err(
+            "HASH_MISMATCH",
+            "experimental file differs from chosen exact SHA",
+        ));
     }
     // The format inspector allows attribution-only metadata, but still rejects
     // any *contradictory* explicit encoding, invalid directory and non-WebP types.
     let parsed = inspect_archive(&bytes, false)?;
     let h = &parsed.header;
     if zoom < h.min_zoom || zoom > h.max_zoom {
-        return Err(err("DATA_MISSING", "requested zoom absent from experimental archive"));
+        return Err(err(
+            "DATA_MISSING",
+            "requested zoom absent from experimental archive",
+        ));
     }
-    let indexed_min = parsed.tiles.keys().next().and_then(|id| {
-        (h.min_zoom..=h.max_zoom).find(|z| tile_id_in_zoom(*id, *z, *z))
-    });
-    let indexed_max = parsed.tiles.keys().next_back().and_then(|id| {
-        (h.min_zoom..=h.max_zoom).find(|z| tile_id_in_zoom(*id, *z, *z))
-    });
+    let indexed_min = parsed
+        .tiles
+        .keys()
+        .next()
+        .and_then(|id| (h.min_zoom..=h.max_zoom).find(|z| tile_id_in_zoom(*id, *z, *z)));
+    let indexed_max = parsed
+        .tiles
+        .keys()
+        .next_back()
+        .and_then(|id| (h.min_zoom..=h.max_zoom).find(|z| tile_id_in_zoom(*id, *z, *z)));
     if indexed_min != Some(h.min_zoom) || indexed_max != Some(h.max_zoom) {
         return Err(err("INVALID_SOURCE", "PMTiles header/index zoom mismatch"));
     }
     let [west, south, east, north] = selection.bbox;
     let envelope = h.bbox;
     if west < envelope[0] || south < envelope[1] || east > envelope[2] || north > envelope[3] {
-        return Err(err("DATA_MISSING", "selection outside local source envelope"));
+        return Err(err(
+            "DATA_MISSING",
+            "selection outside local source envelope",
+        ));
     }
     let metadata = decompress(
         section(&bytes, h.metadata.0, h.metadata.1, "metadata")?,
@@ -130,8 +153,7 @@ pub fn decode_experimental_local_pmtiles(
     let mx = |lon: f64| ((lon + 180.) / 360. * n).clamp(0., n);
     let my = |lat: f64| {
         let phi = lat.to_radians();
-        ((1. - (phi.tan() + 1. / phi.cos()).ln() / std::f64::consts::PI) / 2. * n)
-            .clamp(0., n)
+        ((1. - (phi.tan() + 1. / phi.cos()).ln() / std::f64::consts::PI) / 2. * n).clamp(0., n)
     };
     let low = |f: f64| {
         let seam = f.round();
@@ -158,13 +180,19 @@ pub fn decode_experimental_local_pmtiles(
         .checked_mul(u64::from(y1) - u64::from(y0) + 1)
         .ok_or("OUT_OF_MEMORY: experimental tile count overflow")?;
     if tile_count > MAX_COVERAGE_QUERY_TILES as u64 || tile_count > MAX_CACHED_TILES as u64 {
-        return Err(err("OUT_OF_MEMORY", "experimental tile count exceeds WebP cache budget"));
+        return Err(err(
+            "OUT_OF_MEMORY",
+            "experimental tile count exceeds WebP cache budget",
+        ));
     }
     for x in x0..=x1 {
         for y in y0..=y1 {
             let id = tile_id(zoom, x, y)?;
             if !parsed.tiles.contains_key(&id) {
-                return Err(err("DATA_MISSING", "experimental selected source tile absent"));
+                return Err(err(
+                    "DATA_MISSING",
+                    "experimental selected source tile absent",
+                ));
             }
         }
     }
@@ -183,7 +211,10 @@ pub fn decode_experimental_local_pmtiles(
         || count > MAX_PREVIEW_SAMPLES
         || count > selection.terrain_profile.max_samples
     {
-        return Err(err("OUT_OF_MEMORY", "experimental candidate sample budget exceeded"));
+        return Err(err(
+            "OUT_OF_MEMORY",
+            "experimental candidate sample budget exceeded",
+        ));
     }
     let mut cache = BTreeMap::<(u32, u32), TerrariumTile>::new();
     let mut heights = Vec::with_capacity(count);
@@ -216,7 +247,10 @@ pub fn decode_experimental_local_pmtiles(
                 .get(&(x, y))
                 .and_then(|tile| tile.height(px, py))
                 .ok_or_else(|| {
-                    err("DATA_MISSING", "experimental alpha no-data in selected raster sample")
+                    err(
+                        "DATA_MISSING",
+                        "experimental alpha no-data in selected raster sample",
+                    )
                 })?;
             heights_sha.update(candidate.to_le_bytes());
             heights.push(candidate);
