@@ -136,8 +136,13 @@ fn attribution_only_sample_and_mismatched_header_zoom_are_format_inspectable_but
         .unwrap();
         let rejected_grid = root.join("must-not-create-grid.json");
         let decode = exec(&[
-            "decode", file_str(&path), file_str(&root.join("registry")),
-            file_str(&source), file_str(&selection), "0", file_str(&rejected_grid)
+            "decode",
+            file_str(&path),
+            file_str(&root.join("registry")),
+            file_str(&source),
+            file_str(&selection),
+            "0",
+            file_str(&rejected_grid),
         ]);
         assert!(!decode.status.success());
         assert!(String::from_utf8_lossy(&decode.stderr).contains("explicit Terrarium metadata"));
