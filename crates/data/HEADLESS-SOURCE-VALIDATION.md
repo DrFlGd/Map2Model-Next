@@ -60,3 +60,16 @@ With this fixed bbox the required XYZ tile set is present for each zoom 13–17,
 ## Remaining acceptance
 
 The lead's source protocol lives at `docs/agent-handoff/MAPTERHORN-SAMPLE-PROTOCOL.md`. The regional URL or metadata text is not a release pin; the actual SHA above pins this exact *extract*, not the original upstream release. Real source datum/licensing/resolution verification, independent native Rust sample comparisons, disconnected Windows GUI/native IPC integration and native mesh/export integration are still pending. Both A2-01 (#3) and A2-02 (#4) stay open and unmerged.
+
+## Corrected owner-supplied real regional extraction — independently authenticated
+
+After the initial `interlaken-test.pmtiles`, the owner privately supplied **`interlaken-z17.pmtiles`** generated with explicit `--maxzoom=17`. The owner ran the official go-pmtiles verifier and reported `Completed verify in 0s` with header `minZoom=13,maxZoom=17`.
+
+Independent byte-level comparison of both uploaded files established:
+- **Corrected file:** exactly **3,127,295 bytes**, SHA-256 **`75e03d8e0ec36d347ee4ed412ed816d67af53309236a52ecb028930c99f06aa0`**, matching the owner's PowerShell checksum.
+- **Original file:** same length, SHA-256 **`40f452bd2449ac0b119efd1cabfcd1a0937d375865e4795810bf82d4743ad5ce`**.
+- **Exactly one byte differs:** absolute **file offset 101** (PMTiles v3 header `max_zoom`), **`0x12` / 18 → `0x11` / 17**. Every other byte — including the directory, metadata, indexed tile payloads and all 40 WebP files — is identical. This eliminates the original header/directory mismatch **without replacing or changing any source elevations**.
+- Independently decoded gzip root, attribution-only metadata, 40 indexed WebP images and all 512×512 RGB payloads; zoom counts remain **z13:1, z14:2, z15:4, z16:9, z17:24**. Header and actual index extrema now agree. Original first z13 center pixel RGB `(130,51,192)` evaluates to `563.75` via the documented Terrarium equation; observed formula-value range across image pixels `562.5`–`1611.0` (metres *on the claimed encoding scale only*, not datum-verified heights).
+- **Do not commit either privately supplied PMTiles binary or redistribute it.** A separate private JSON evidence worksheet may contain hashes, ranges and metadata only.
+
+**Resolved:** the PMTiles v3 max-zoom verification failure for this extract; availability of a genuinely SHA-pinned, 512px, independently decoded regional fixture (private). **Not resolved:** metadata still contains attribution only and no explicit Terrarium encoding; registered/native importer remains fail-closed, even though the format-only inspector can read this archive. Real source release identity, upstream region/source-specific derivative/redistribution rights, native DEM resolution and vertical datum are not independently proven. `productionGenerationReady` remains false; no live Windows native/Rust CLI run was performed on the private bytes during this analysis. No G0 contract schema change.
