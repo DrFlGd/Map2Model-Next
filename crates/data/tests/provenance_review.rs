@@ -3,8 +3,10 @@
 //! owner-provided PMTiles, signatures or elevation rasters.
 use serde_json::Value;
 
-const ORIGINAL_ARCHIVE_SHA: &str = "40f452bd2449ac0b119efd1cabfcd1a0937d375865e4795810bf82d4743ad5ce";
-const CORRECTED_ARCHIVE_SHA: &str = "75e03d8e0ec36d347ee4ed412ed816d67af53309236a52ecb028930c99f06aa0";
+const ORIGINAL_ARCHIVE_SHA: &str =
+    "40f452bd2449ac0b119efd1cabfcd1a0937d375865e4795810bf82d4743ad5ce";
+const CORRECTED_ARCHIVE_SHA: &str =
+    "75e03d8e0ec36d347ee4ed412ed816d67af53309236a52ecb028930c99f06aa0";
 
 fn report() -> Value {
     serde_json::from_str(include_str!("../provenance/interlaken-z17-review.v1.json"))
@@ -38,13 +40,22 @@ fn published_encoding_convention_is_not_production_permission() {
     assert!(rejected_as_production_authorization(&memo));
     assert_eq!(memo["schemaVersion"], "review-1");
     assert_eq!(memo["archiveSha256"], CORRECTED_ARCHIVE_SHA);
-    assert_eq!(memo["earlierMalformedHeaderArchiveSha256"], ORIGINAL_ARCHIVE_SHA);
+    assert_eq!(
+        memo["earlierMalformedHeaderArchiveSha256"],
+        ORIGINAL_ARCHIVE_SHA
+    );
     assert_ne!(ORIGINAL_ARCHIVE_SHA, CORRECTED_ARCHIVE_SHA);
     assert_eq!(memo["archiveBytes"], 3_127_295);
-    assert_eq!(memo["regionBboxWgs84"], serde_json::json!([7.88, 46.68, 7.89, 46.69]));
-    assert_eq!(memo["observedTileZoomCounts"], serde_json::json!({
-        "13": 1, "14": 2, "15": 4, "16": 9, "17": 24
-    }));
+    assert_eq!(
+        memo["regionBboxWgs84"],
+        serde_json::json!([7.88, 46.68, 7.89, 46.69])
+    );
+    assert_eq!(
+        memo["observedTileZoomCounts"],
+        serde_json::json!({
+            "13": 1, "14": 2, "15": 4, "16": 9, "17": 24
+        })
+    );
     assert_eq!(memo["webpTileSizePixels"], 512);
     assert_eq!(
         memo["officialPublisherEncodingDocumentation"]["publisherRepositoryCommitSha"],
@@ -69,12 +80,36 @@ fn published_encoding_convention_is_not_production_permission() {
 fn tampering_with_review_ledger_approval_or_datum_must_be_detected() {
     let memo = report();
     for (section, key, value) in [
-        ("provenanceGates", "productionGenerationReady", serde_json::json!(true)),
-        ("provenanceGates", "redistributionApproved", serde_json::json!(true)),
-        ("provenanceGates", "verticalDatumVerified", serde_json::json!(true)),
-        ("provenanceGates", "verticalDatumStatus", serde_json::json!("known")),
-        ("provenanceGates", "sourceLicenseVerified", serde_json::json!(true)),
-        ("provenanceGates", "nativeResolutionVerified", serde_json::json!(true)),
+        (
+            "provenanceGates",
+            "productionGenerationReady",
+            serde_json::json!(true),
+        ),
+        (
+            "provenanceGates",
+            "redistributionApproved",
+            serde_json::json!(true),
+        ),
+        (
+            "provenanceGates",
+            "verticalDatumVerified",
+            serde_json::json!(true),
+        ),
+        (
+            "provenanceGates",
+            "verticalDatumStatus",
+            serde_json::json!("known"),
+        ),
+        (
+            "provenanceGates",
+            "sourceLicenseVerified",
+            serde_json::json!(true),
+        ),
+        (
+            "provenanceGates",
+            "nativeResolutionVerified",
+            serde_json::json!(true),
+        ),
         (
             "provenanceGates",
             "exactArchiveEncodingAttestationSignatureVerified",
