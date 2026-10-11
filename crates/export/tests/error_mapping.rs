@@ -36,7 +36,13 @@ fn native_job_reason_codes_are_exact_frozen_jobstate_v1_variants() {
             valid.iter().any(|x| x.as_str() == Some(public_code)),
             "{internal_code} wrongly escapes into frozen JobStateV1 as {public_code}"
         );
-        assert_eq!(public_code, if internal_code == "INVALID_EXPORT" || internal_code ==
-            "UNKNOWN_PRIVATE_ERROR" { "EXPORT_FAILED" } else { internal_code });
+        assert_eq!(
+            public_code,
+            if internal_code == "INVALID_EXPORT" || internal_code == "UNKNOWN_PRIVATE_ERROR" {
+                "EXPORT_FAILED"
+            } else {
+                internal_code
+            }
+        );
     }
 }
