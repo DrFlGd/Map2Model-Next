@@ -1,4 +1,6 @@
-# Active post-v0.0.2 handoff — Agent 2, Agent 3 and Lead
+# Historical post-v0.0.2 handoff — Agent 2, Agent 3 and Lead
+
+> **SUPERSEDED FOR PRIVATE EXPERIMENTAL TERRAIN:** The owner's 2026-10-11 product decision authorizes a separate, clearly labeled **local personal experimental** preview with per-job user consent and provenance/datum disclaimers **without requiring full verified-source attestations before that experiment**. See the **[current G2 review dispatch](G2-PRIVATE-USE-EXPERIMENTAL-TERRAIN-REVIEW-2026-10-11.md)** and [policy](../licensing/PRIVATE-LOCAL-TERRAIN-POLICY-2026-10-11.md). All real-source verification/rights checks remain for any claim of verified height/datum or distribution; private use does not excuse terms.
 
 **Date:** 2026-10-11. **Owner:** Agent 1, orchestration and integration. **Status:** Active development instructions, not a Phase-1 completion or production-data approval. **Read this before the older A1-04 dispatch**. Work can run in parallel; frozen six G0 V1 contracts stay unchanged without a reviewed, versioned change process.
 
