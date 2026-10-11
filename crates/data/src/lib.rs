@@ -503,6 +503,15 @@ pub fn inspect_unverified_local_pmtiles(
         .keys()
         .next_back()
         .and_then(|id| observed_zoom(*id));
+    // This is derived from authenticated tile-directory IDs, not the header or
+    // metadata envelope. It is format-only evidence, not verified sample rights.
+    let mut indexed_tiles_by_zoom = BTreeMap::<String, usize>::new();
+    for id in inspected.tiles.keys() {
+        let z = observed_zoom(*id).ok_or_else(|| {
+            err("INVALID_SOURCE", "indexed tile ID falls outside declared source zoom")
+        })?;
+        *indexed_tiles_by_zoom.entry(z.to_string()).or_default() += 1;
+    }
     let sample = if let Some((z, x, y)) = requested_tile {
         let id = tile_id(z, x, y)?;
         let record = inspected.tiles.get(&id).ok_or_else(|| {
@@ -548,6 +557,7 @@ pub fn inspect_unverified_local_pmtiles(
             && actual_max_zoom == Some(header.max_zoom),
         "metadataExplicitlyDeclaresTerrarium": metadata.get("encoding").and_then(|v| v.as_str()) == Some("terrarium"),
         "indexedTileCount": inspected.tiles.len(),
+        "indexedTilesByZoom": indexed_tiles_by_zoom,
         "internalCompression": if header.internal_compression == 2 {"gzip"} else {"none"},
         "tileCompression": if header.tile_compression == 2 {"gzip"} else {"none"},
         "tileSample": sample,
