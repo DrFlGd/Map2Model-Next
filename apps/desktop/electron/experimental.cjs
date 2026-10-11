@@ -94,7 +94,11 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      if(sha!==result.packageSha256||bytes.length!==result.bytes)
        throw Error('HASH_MISMATCH: native 3MF output altered');
      if(controller.signal.aborted)throw Error('CANCELLED: before publication');
-     await fs.link(staging,destination);
+     try{await fs.link(staging,destination);}catch(error){
+       throw Error(error?.code==='EEXIST'?
+         'EXPORT_FAILED: atomic publication refused existing destination':
+         'EXPORT_FAILED: atomic publication failed');
+     }
      const finalBytes=await fs.readFile(destination);
      if(createHash('sha256').update(finalBytes).digest('hex')!==sha){
        await fs.unlink(destination).catch(()=>{});
