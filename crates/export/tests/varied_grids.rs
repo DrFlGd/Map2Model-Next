@@ -68,9 +68,18 @@ fn signed_synthetic_grid(
     grid.width = case.width;
     grid.height = case.height;
     grid.min_east_meters = 0.0;
-    grid.dx_meters = 7.5;
-    grid.dy_meters = 5.0;
-    grid.max_north_meters = (case.height - 1) as f64 * grid.dy_meters;
+    // Match the exact frozen SelectionV1 WGS84 bounds and Agent 2's
+    // projected-metric EN rectangle, but intentionally vary node density.
+    let selection: map2model_contracts::SelectionV1 = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/contracts/v1/SelectionV1.valid.json"
+    )).unwrap();
+    let [east_m, north_m] = map2model_contracts::validation::project_wgs84(
+        [selection.bbox[0], selection.bbox[1]],
+        [selection.bbox[2], selection.bbox[3]],
+    ).unwrap();
+    grid.dx_meters = east_m / (case.width - 1) as f64;
+    grid.dy_meters = north_m / (case.height - 1) as f64;
+    grid.max_north_meters = north_m;
     grid.samples_meters = Some(heights);
     grid.valid_mask = Some(vec![true; case.width * case.height]);
     grid.source_manifest_sha256 = source.manifest_sha256.clone();
