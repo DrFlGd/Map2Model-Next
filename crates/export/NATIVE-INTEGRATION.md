@@ -39,6 +39,31 @@ Do not conflate these SHA domains. An identical mesh may have different provenan
 
 `crates/export/tests/varied_grids.rs` tests three original **decoder-shaped** synthetic grids of different sizes and vertical exaggeration, node-aligned interior clipping, positive volume, variable mm dimensions, repeatable ZIP/provenance/mesh hashes, independent Python ZIP/XML/geometry reader and fail-closed missing samples, altered grid hash, unknown source datum, missing license, selection mismatch and cancellation. These heights were generated in the Agent 3 test: **they are not actual decoded 512px WebP / PMTiles samples**. Do not claim the entire PMTiles pipeline already passed.
 
+Agent 2 has now landed an **original, 4-tile WebP 512×512 generated PMTiles** fixture in stacked [PR #16](https://github.com/DrFlGd/Map2Model-Next/pull/16) (generator `crates/data/src/bin/terrain_synthetic_fixture.rs`, test `crates/data/tests/synthetic_pmtiles_integration.rs`). It tests a 2-axis XYZ seam and negative missing/masked/rights/datum/hash cases. This remains on Agent 2's branch; **no dependency on its unmerged crate is added to PR #15**.
+
+For the Lead's temporary combined branch, the proposed native code sequence is:
+
+~~~rust
+// On the combined integration branch only: map2model-data is Agent 2-owned.
+// Both source_path and registry_root must be native-authorized.
+let source = map2model_data::import_local_pmtiles(source_path, registry_root, &declaration)?;
+let grid = map2model_data::terrarium::decode_selection_grid(&source, &selection, 12)?;
+let req = TerrainBuildRequestV1 {
+    selection_id: grid.selection_id.clone(),
+    grid_sha256: grid.grid_sha256.clone(),
+    // plus lead-validated job/export identity, node-aligned clip,
+    // dimensions, baseline and print parameters...
+    ..request_from_trusted_worker
+};
+let mesh = map2model_mesh::build_mesh(&grid, &req)?;
+let artifact = map2model_export::package::export_3mf(&mesh, &grid, &req, &source.manifest)?;
+// Cancel-safe native-owned no-clobber output is the *last* operation.
+map2model_export::package::write_3mf_atomic(trusted_output, &artifact, || cancelled())?;
+// Native worker MUST reopen and SHA-verify trusted_output before wire success.
+~~~
+
+Do not infer the example's syntactic error-conversion or authorization policy is implemented in the Electron supervisor. This pseudocode is an API wiring recipe, not a merged end-to-end PMTiles CI result.
+
 Agent 2 owns an original, redistribution-safe real 512×512-WebP PMTiles fixture and native decode contract. Lead must test that exact decoded `ElevationGridV1` through the public exporter functions on their temporary integration branch, with synthetic-only labels and no network. Real Interlaken data remain private and unauthorized for production.
 
 ## License/NOTICE integration for Windows
