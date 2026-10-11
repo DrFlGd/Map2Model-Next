@@ -42,11 +42,15 @@ fn synthetic_response(request_id: &str) -> Value {
             let code = reason.split(':').next().unwrap_or("");
             let safe_code = match code {
                 "INVALID_REQUEST" | "INVALID_GRID_HASH" | "INVALID_GEOMETRY"
-                | "INVALID_DIMENSIONS" | "DATA_MISSING" | "INCOMPLETE_GRID"
-                | "OUT_OF_MEMORY" | "NON_MANIFOLD_MESH" | "UNSUPPORTED_DATUM" => code,
-                _ => "INTERNAL_ERROR"
+                | "INVALID_DIMENSIONS" | "DATA_MISSING" | "INCOMPLETE_GRID" | "OUT_OF_MEMORY"
+                | "NON_MANIFOLD_MESH" | "UNSUPPORTED_DATUM" => code,
+                _ => "INTERNAL_ERROR",
             };
-            error_response(Some(request_id), safe_code, "Synthetic native mesh smoke failed")
+            error_response(
+                Some(request_id),
+                safe_code,
+                "Synthetic native mesh smoke failed",
+            )
         }
     }
 }
@@ -84,7 +88,11 @@ fn handle_line(line: &str) -> Value {
             .all(|key| matches!(key.as_str(), "apiVersion" | "requestId" | "operation"))
     });
     if !safe_keys {
-        return error_response(Some(request_id), "INVALID_REQUEST", "Unsupported request fields");
+        return error_response(
+            Some(request_id),
+            "INVALID_REQUEST",
+            "Unsupported request fields",
+        );
     }
     match request.get("operation").and_then(Value::as_str) {
         Some("health") => health(Some(request_id)),
@@ -264,7 +272,9 @@ mod tests {
         let mut output = Vec::new();
         serve(&mut input, &mut output).unwrap();
         let results = String::from_utf8(output).unwrap();
-        let mut lines = results.lines().map(|s| serde_json::from_str::<Value>(s).unwrap());
+        let mut lines = results
+            .lines()
+            .map(|s| serde_json::from_str::<Value>(s).unwrap());
         assert_eq!(lines.next().unwrap()["reasonCode"], "INVALID_REQUEST");
         assert_eq!(lines.next().unwrap()["requestId"], "after-big");
         assert!(lines.next().is_none());
@@ -273,12 +283,16 @@ mod tests {
     #[test]
     fn invalid_utf8_does_not_break_framing() {
         let mut wire = vec![0xff, b'\n'];
-        wire.extend_from_slice(br#"{"apiVersion":"1.0.0","requestId":"next","operation":"health"}"#);
+        wire.extend_from_slice(
+            br#"{"apiVersion":"1.0.0","requestId":"next","operation":"health"}"#,
+        );
         let mut input = Cursor::new(wire);
         let mut output = Vec::new();
         serve(&mut input, &mut output).unwrap();
         let results = String::from_utf8(output).unwrap();
-        let mut lines = results.lines().map(|s| serde_json::from_str::<Value>(s).unwrap());
+        let mut lines = results
+            .lines()
+            .map(|s| serde_json::from_str::<Value>(s).unwrap());
         assert_eq!(lines.next().unwrap()["reasonCode"], "INVALID_REQUEST");
         assert_eq!(lines.next().unwrap()["requestId"], "next");
         assert!(lines.next().is_none());
