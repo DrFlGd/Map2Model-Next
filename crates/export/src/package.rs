@@ -508,19 +508,33 @@ pub fn write_3mf_atomic(
         .file_name()
         .and_then(|x| x.to_str())
         .ok_or_else(|| invalid("missing or non-UTF8 export name"))?;
-    let temporary = destination.with_file_name(format!(
-        ".{file_name}.{}.{}.staging",
-        std::process::id(),
-        &artifact.package_sha256[..16]
-    ));
-    // Same-directory hard link creates the final name atomically without
-    // ever overwriting an existing job's output, including across OSes.
-    let outcome = (|| -> Result<(), ExportError> {
-        let mut file = std::fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temporary)
-            .map_err(|e| invalid(format!("staging create: {e}")))?;
+    // Each *attempt* has a fresh OS-backed 128-bit random stage identity;
+    // unlike the old PID+archive-SHA name, a crash can leave a prior stage
+    // without preventing a later retry. create_new is the final exclusivity
+    // guard even if the nonce collides or another process races us.
+    let mut reserved = None;
+    for _ in 0..8 {
+        let mut nonce = [0u8; 16];
+        getrandom::fill(&mut nonce)
+            .map_err(|e| invalid(format!("OS random staging identity failed: {e}")))?;
+        let token = nonce.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let path =
+            destination.with_file_name(format!(".{file_name}.{}.{token}.staging", std::process::id()));
+        match std::fs::OpenOptions::new().create_new(true).write(true).open(&path) {
+            Ok(file) => {
+                reserved = Some((path, file));
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(invalid(format!("staging create: {error}"))),
+        }
+    }
+    let (temporary, mut file) = reserved.ok_or_else(|| invalid("no unused random staging name"))?;
+    let stage_for_link = temporary.as_path();
+    // Same-directory hard link is an atomic, no-clobber commit on Windows
+    // and Unix. Move the file handle into this closure so it closes even on
+    // write/sync failure before removing our *own* temporary file.
+    let outcome = (move || -> Result<(), ExportError> {
         file.write_all(&artifact.bytes)
             .map_err(|e| invalid(format!("staging write: {e}")))?;
         file.sync_all()
@@ -532,7 +546,7 @@ pub fn write_3mf_atomic(
                 "export cancelled before publication",
             ));
         }
-        std::fs::hard_link(&temporary, destination)
+        std::fs::hard_link(stage_for_link, destination)
             .map_err(|e| invalid(format!("atomic no-clobber publication: {e}")))?;
         Ok(())
     })();
