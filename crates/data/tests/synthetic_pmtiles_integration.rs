@@ -24,7 +24,7 @@ fn root() -> PathBuf {
             .collect::<String>()
     ))
 }
-fn path<'a>(p: &'a Path) -> &'a str {
+fn path(p: &Path) -> &str {
     p.to_str().expect("OS test temporary root supports UTF-8")
 }
 fn sha(bytes: &[u8]) -> String {
