@@ -40,3 +40,10 @@ jobs:
         run: cargo run --quiet --bin map2model-engine -- --health
       - name: Run frozen synthetic-grid to real-mesh native CLI smoke
         run: cargo run --quiet --bin map2model-engine -- --smoke-mesh
+      - name: Native synthetic grid to verified 3MF end-to-end smoke
+        shell: bash
+        run: |
+          SAMPLE="$(node -p 'require("path").resolve("native-demo.3mf")')"
+          cargo run --quiet --bin map2model-engine -- --export-synthetic "$SAMPLE" > native-3mf-report.json
+          node -e 'const r=require("./native-3mf-report.json");if(r.status!=="ok"||r.result.synthetic!==true||r.result.threeMfExported!==true||r.result.vertices!==24||r.result.triangles!==44||r.result.productionGenerationReady!==false)process.exit(1)'
+          python crates/export/tests/independent_3mf.py "$SAMPLE" crates/engine/fixtures/A3-01.reference.json
