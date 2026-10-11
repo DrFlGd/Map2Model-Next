@@ -1,8 +1,8 @@
 {
   "name": "map2model-next",
   "private": true,
-  "version": "0.0.2",
-  "description": "Local-first Map2Model Next synthetic terrain to 3MF Windows preview",
+  "version": "0.0.3",
+  "description": "Original 512px synthetic PMTiles to native 3MF Windows integration preview",
   "engines": {
     "node": ">=22.16.0 <23"
   },
@@ -60,6 +60,14 @@
       {
         "from": "target/release/map2model-engine.exe",
         "to": "bin/map2model-engine.exe"
+      },
+      {
+        "from": "target/release/synthetic-terrain-input",
+        "to": "synthetic-terrain"
+      },
+      {
+        "from": "target/release/legal",
+        "to": "legal"
       }
     ]
   },
