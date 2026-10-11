@@ -186,6 +186,30 @@ fn main() -> ExitCode {
             println!("{}", health(None));
             ExitCode::SUCCESS
         }
+        Some("--export-synthetic") => {
+            // This internal command is launched only by Electron main after its
+            // native Save dialog; no renderer may provide an arbitrary path.
+            let destination = env::args().nth(2);
+            let response = match destination {
+                Some(destination) => match synthetic::export_to(std::path::Path::new(&destination)) {
+                    Ok(result) => json!({"status":"ok","result":result}),
+                    Err(reason) => {
+                        let code = reason.split(':').next().unwrap_or("");
+                        let safe = match code {
+                            "INVALID_REQUEST" | "HASH_MISMATCH" | "DATA_MISSING" |
+                            "INVALID_GEOMETRY" | "INVALID_DIMENSIONS" | "EXPORT_FAILED" |
+                            "OUT_OF_MEMORY" | "UNSUPPORTED_DATUM" | "INCOMPLETE_GRID" => code,
+                            _ => "INTERNAL_ERROR",
+                        };
+                        error_response(None, safe, "Synthetic 3MF native export failed")
+                    }
+                },
+                None => error_response(None, "INVALID_REQUEST", "Missing approved output destination"),
+            };
+            let success = response["status"] == "ok";
+            println!("{response}");
+            if success { ExitCode::SUCCESS } else { ExitCode::from(1) }
+        }
         Some("--smoke-mesh") => {
             let outcome = synthetic_response("smoke-1");
             let success = outcome["status"] == "ok";
@@ -204,7 +228,7 @@ fn main() -> ExitCode {
             let result = error_response(
                 None,
                 "UNSUPPORTED_OPERATION",
-                "Expected --stdio, --health or --smoke-mesh",
+                "Expected --stdio, --health, --smoke-mesh or --export-synthetic",
             );
             eprintln!("{result}");
             ExitCode::from(2)
