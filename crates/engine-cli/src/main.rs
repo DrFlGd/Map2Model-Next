@@ -1,5 +1,6 @@
 //! A1-04 native-only offline host. No renderer filesystem operations or
 //! real-source generation are authorized by this stdio interface.
+mod experimental_local;
 mod pmtiles_demo;
 mod synthetic;
 
@@ -186,6 +187,49 @@ fn main() -> ExitCode {
         Some("--health") => {
             println!("{}", health(None));
             ExitCode::SUCCESS
+        }
+        Some("--inspect-local-experimental") => {
+            let args = env::args().skip(2).collect::<Vec<_>>();
+            let response = match args.as_slice() {
+                [path] => match experimental_local::inspect(std::path::Path::new(path)) {
+                    Ok(value) => json!({"status":"ok","result":value}),
+                    Err(reason) => error_response(None, reason.split(':').next().unwrap_or("INVALID_SOURCE"),"Cannot inspect local PMTiles"),
+                },
+                _ => error_response(None,"INVALID_REQUEST","Expected selected local PMTiles"),
+            };
+            let ok=response["status"]=="ok";
+            println!("{response}");
+            if ok {ExitCode::SUCCESS} else {ExitCode::from(1)}
+        }
+        Some("--export-local-experimental") => {
+            let args=env::args().skip(2).collect::<Vec<_>>();
+            let response=match args.as_slice() {
+                [file,sha,selection,zoom,job,policy,out] => {
+                    match zoom.parse::<u8>() {
+                        Ok(z) => match experimental_local::export(
+                            std::path::Path::new(file),sha,std::path::Path::new(selection),
+                            z,job,policy,std::path::Path::new(out)) {
+                            Ok(value)=>json!({"status":"ok","result":value}),
+                            Err(reason)=>{
+                                let code=reason.split(':').next().unwrap_or("");
+                                let safe=match code {
+                                    "INVALID_REQUEST"|"INVALID_SOURCE"|"INVALID_SELECTION"|
+                                    "DATA_MISSING"|"HASH_MISMATCH"|"OUT_OF_MEMORY"|
+                                    "INVALID_DIMENSIONS"|"INVALID_GEOMETRY"|
+                                    "CANCELLED"|"EXPORT_FAILED"|"UNSUPPORTED_DATUM"=>code,
+                                    _=>"EXPORT_FAILED",
+                                };
+                                error_response(None,safe,"Experimental private source export did not complete")
+                            }
+                        },
+                        Err(_)=>error_response(None,"INVALID_REQUEST","Invalid tile zoom"),
+                    }
+                },
+                _=>error_response(None,"INVALID_REQUEST","Invalid experimental job invocation"),
+            };
+            let ok=response["status"]=="ok";
+            println!("{response}");
+            if ok {ExitCode::SUCCESS} else {ExitCode::from(1)}
         }
         Some("--export-original-pmtiles") => {
             // Only Electron main supplies the fixed bundled original synthetic
