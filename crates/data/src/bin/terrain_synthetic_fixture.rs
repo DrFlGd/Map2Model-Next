@@ -164,10 +164,7 @@ fn selection() -> Result<SelectionV1, String> {
             max_samples: 10_000,
         },
     };
-    selection.selection_id = format!(
-        "sel-{}",
-        &canonical::selection_digest(&selection)?[..32]
-    );
+    selection.selection_id = format!("sel-{}", &canonical::selection_digest(&selection)?[..32]);
     validation::validate_selection(&selection)?;
     Ok(selection)
 }
@@ -188,7 +185,10 @@ fn declaration(sha: &str, variant: &str) -> Value {
     })
 }
 fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let mut f = OpenOptions::new().write(true).create_new(true).open(path)
+    let mut f = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
         .map_err(|_| "INVALID_SOURCE: fixture output cannot overwrite an existing file")?;
     f.write_all(bytes)
         .and_then(|()| f.sync_all())
@@ -197,8 +197,7 @@ fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 fn generate(output: &Path) -> Result<Value, String> {
     // Fail closed: never overwrite an existing output directory or real data.
-    fs::create_dir(output)
-        .map_err(|_| "INVALID_SOURCE: supply a NEW empty output directory")?;
+    fs::create_dir(output).map_err(|_| "INVALID_SOURCE: supply a NEW empty output directory")?;
     let selected = selection()?;
     write_new(
         &output.join("selection.json"),
