@@ -1,0 +1,82 @@
+name: Agent 2 original synthetic PMTiles integration handoff
+
+on:
+  push:
+    branches: [agent/2-A2-02-terrarium-grid]
+    paths:
+      - 'crates/data/**'
+      - '.github/workflows/a2-02-synthetic-handoff.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  original-synthetic-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.90.0'
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Require formatter and strict lint for original test source
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+      - name: Exercise synthetic PMTiles -> selection -> decoded grid -> actual mesh
+        run: cargo test --locked -p map2model-data --test synthetic_pmtiles_integration -- --nocapture
+      - name: Produce fully original synthetic PMTiles fixtures, source SHA and declarations
+        run: |
+          cargo run --quiet --locked -p map2model-data --bin terrain_synthetic_fixture -- "$PWD/agent2-original-synthetic"
+          sha256sum agent2-original-synthetic/*.pmtiles
+      - name: Check test-only Ed25519/JCS exact-archive evidence negative cases
+        env:
+          A2_SYNTHETIC_ARCHIVE: agent2-original-synthetic/complete.pmtiles
+        run: node --test crates/data/tests/encoding_attestation.test.mjs
+      - name: Native CLI: decode the complete synthetic source, assert no real-source readiness
+        run: |
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- decode             "$PWD/agent2-original-synthetic/complete.pmtiles"             "$RUNNER_TEMP/map2model-artificial-only-registry"             "$PWD/agent2-original-synthetic/complete.source.json"             "$PWD/agent2-original-synthetic/selection.json"             12             "$PWD/agent2-original-synthetic/decoded-grid.json"             | tee "$PWD/agent2-original-synthetic/decode-summary.json"
+      - name: Verify complete source + frozen output summary and collect SHA report
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, hashlib
+          base = pathlib.Path('agent2-original-synthetic')
+          fixture = json.loads((base / 'fixture-report.json').read_text())
+          decode = json.loads((base / 'decode-summary.json').read_text())
+          grid = json.loads((base / 'decoded-grid.json').read_text())
+          data = (base / 'complete.pmtiles').read_bytes()
+          source_sha = hashlib.sha256(data).hexdigest()
+          assert fixture['kind'] == 'Map2ModelOriginalSyntheticTerrainFixtureV1'
+          assert fixture['variants'][0]['archiveSha256'] == source_sha
+          assert decode['sourceArchiveSha256'] == source_sha
+          assert grid['gridSha256'] == decode['gridSha256']
+          assert grid['selectionId'] == fixture['selectionId']
+          assert grid['verticalDatumId'] == 'SYNTHETIC-RELATIVE-METERS'
+          assert not decode['productionGenerationReady']
+          assert not decode['licenseAndDatumIndependentlyVerified']
+          assert decode['networkRequests'] == 0
+          print('AGENT2_SYNTHETIC_HANDOFF sourceSha256=' + source_sha)
+          print('AGENT2_SYNTHETIC_HANDOFF manifestSha256=' + decode['manifestSha256'])
+          print('AGENT2_SYNTHETIC_HANDOFF gridSha256=' + decode['gridSha256'])
+          print('AGENT2_SYNTHETIC_HANDOFF selectionId=' + fixture['selectionId'])
+          print('AGENT2_SYNTHETIC_HANDOFF grid=' + str(grid['width']) + 'x' + str(grid['height']))
+          print('AGENT2_SYNTHETIC_HANDOFF realSourceGenerationReady=false')
+          (base / 'SHA-RESULTS.txt').write_text(
+            'sourceSha256=' + source_sha + '\n' +
+            'manifestSha256=' + decode['manifestSha256'] + '\n' +
+            'gridSha256=' + decode['gridSha256'] + '\n' +
+            'selectionId=' + fixture['selectionId'] + '\n' +
+            'networkRequests=0\nproductionRealSourceReady=false\n'
+          )
+          PY
+      - name: Publish original-generated synthetic fixtures ONLY for lead A1-04 integration
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent2-original-512px-pmtiles-to-grid
+          path: agent2-original-synthetic/
+          if-no-files-found: error
+          retention-days: 14
