@@ -100,7 +100,7 @@ test('trusted signer, revocation and key policy revision fail closed', () => {
   });
   const rotated = payload();
   rotated.keyPolicyRevision = 'test-keyring-revision-0';
-  rejection('old key policy revision', signTestEncoding(rotated, key1.privateKey));
+  assert.throws(() => signTestEncoding(rotated, key1.privateKey), /UNTRUSTED_ENCODING_EVIDENCE/);
 });
 test('payload tamper, exact source release mismatch and unsafe rights flags reject', () => {
   const wrongRelease = payload();
