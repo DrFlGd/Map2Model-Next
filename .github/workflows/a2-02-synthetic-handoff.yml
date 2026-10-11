@@ -40,6 +40,36 @@ jobs:
       - name: "Native CLI: decode the complete synthetic source, assert no real-source readiness"
         run: |
           cargo run --quiet --locked -p map2model-data --bin terrain_offline -- decode             "$PWD/agent2-original-synthetic/complete.pmtiles"             "$RUNNER_TEMP/map2model-artificial-only-registry"             "$PWD/agent2-original-synthetic/complete.source.json"             "$PWD/agent2-original-synthetic/selection.json"             12             "$PWD/agent2-original-synthetic/decoded-grid.json"             | tee "$PWD/agent2-original-synthetic/decode-summary.json"
+      - name: Exercise explicitly opted-in local experimental preview (all source claims unverified)
+        run: |
+          cargo test --locked -p map2model-data --test experimental_local -- --nocapture
+          SOURCE_SHA=$(python3 -c "import json; print(json.load(open('agent2-original-synthetic/complete.source.json'))['expectedArchiveSha256'])")
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- experimental-local \
+            "$PWD/agent2-original-synthetic/complete.pmtiles" \
+            "$SOURCE_SHA" \
+            "$PWD/agent2-original-synthetic/selection.json" \
+            12 \
+            I-ACCEPT-UNVERIFIED-TERRAIN-FOR-PRIVATE-LOCAL-EXPERIMENTATION \
+            "$PWD/agent2-original-synthetic/experimental-preview.json" \
+            | tee "$PWD/agent2-original-synthetic/experimental-preview-summary.json"
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('agent2-original-synthetic')
+          preview = json.loads((root / 'experimental-preview.json').read_text())
+          assert preview['kind'] == 'ExperimentalLocalTerrainPreviewV1'
+          assert preview['width'] == 6 and preview['height'] == 8
+          assert len(preview['candidateTerrariumHeightsMeters']) == 48
+          assert preview['sourceLicenseVerified'] is False
+          assert preview['encodingAuthenticated'] is False
+          assert preview['nativeResolutionVerified'] is False
+          assert preview['redistributionApproved'] is False
+          assert preview['productionGenerationReady'] is False
+          assert preview['verticalDatumStatus'] == 'unknown'
+          assert preview['networkRequests'] == 0
+          print('AGENT2_EXPERIMENTAL_PREVIEW sourceSha256=' + preview['sourceArchiveSha256'])
+          print('AGENT2_EXPERIMENTAL_PREVIEW candidateHeightsSha256=' + preview['candidateHeightsSha256'])
+          print('AGENT2_EXPERIMENTAL_PREVIEW unverifiedDatum=true productionGenerationReady=false')
+          PY
       - name: Verify complete source + frozen output summary and collect SHA report
         run: |
           python3 - <<'PY'
