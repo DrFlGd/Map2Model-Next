@@ -93,13 +93,8 @@ fn execute(args: &[String]) -> Result<serde_json::Value, String> {
             let selection: SelectionV1 = read_json(Path::new(selection_json))?;
             validation::validate_selection(&selection)?;
             let zoom: u8 = parse(zoom, "zoom")?;
-            let preview = decode_experimental_local_pmtiles(
-                Path::new(file),
-                sha,
-                &selection,
-                zoom,
-                consent,
-            )?;
+            let preview =
+                decode_experimental_local_pmtiles(Path::new(file), sha, &selection, zoom, consent)?;
             let serialized = serde_json::to_vec_pretty(&preview)
                 .map_err(|_| "INVALID_SOURCE: preview cannot serialize")?;
             let mut dest = OpenOptions::new()
@@ -110,7 +105,9 @@ fn execute(args: &[String]) -> Result<serde_json::Value, String> {
             if let Err(error) = dest.write_all(&serialized).and_then(|()| dest.sync_all()) {
                 drop(dest);
                 let _ = fs::remove_file(output);
-                return Err(format!("INVALID_SOURCE: experimental output write failed: {error}"));
+                return Err(format!(
+                    "INVALID_SOURCE: experimental output write failed: {error}"
+                ));
             }
             Ok(serde_json::json!({
                 "result": "experimental-private-local-candidate-raster-only",
