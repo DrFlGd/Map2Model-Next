@@ -2,9 +2,9 @@
 //! No renderer path, network, geodata entitlement, or 3MF file is involved.
 use map2model_contracts::{ElevationGridV1, TerrainBuildRequestV1, TerrainSourceManifestV1};
 use map2model_export::package::{export_3mf, write_3mf_atomic};
-use std::path::Path;
 use map2model_mesh::build_mesh;
 use serde_json::{json, Value};
+use std::path::Path;
 
 pub fn run() -> Result<Value, String> {
     let grid: ElevationGridV1 = serde_json::from_str(include_str!(
@@ -34,12 +34,16 @@ pub fn run() -> Result<Value, String> {
     }))
 }
 
-
 pub fn export_to(destination: &Path) -> Result<Value, String> {
-    if !destination.is_absolute() || destination.extension().and_then(|x| x.to_str()) != Some("3mf") {
-        return Err("INVALID_REQUEST: native approved destination must be an absolute .3mf path".into());
+    if !destination.is_absolute() || destination.extension().and_then(|x| x.to_str()) != Some("3mf")
+    {
+        return Err(
+            "INVALID_REQUEST: native approved destination must be an absolute .3mf path".into(),
+        );
     }
-    let parent = destination.parent().ok_or("INVALID_REQUEST: export has no directory")?;
+    let parent = destination
+        .parent()
+        .ok_or("INVALID_REQUEST: export has no directory")?;
     if !parent.is_dir() || destination.exists() {
         return Err("EXPORT_FAILED: destination exists or directory unavailable".into());
     }
@@ -55,8 +59,7 @@ pub fn export_to(destination: &Path) -> Result<Value, String> {
         "../../../tests/fixtures/contracts/v1/TerrainSourceManifestV1.valid.json"
     ))
     .map_err(|_| "INTERNAL_ERROR: frozen source fixture invalid")?;
-    let mesh = build_mesh(&grid, &request)
-        .map_err(|e| format!("{}: {}", e.code, e.message))?;
+    let mesh = build_mesh(&grid, &request).map_err(|e| format!("{}: {}", e.code, e.message))?;
     let artifact = export_3mf(&mesh, &grid, &request, &manifest)
         .map_err(|e| format!("{}: {}", e.job_reason_code(), e.message))?;
     write_3mf_atomic(destination, &artifact, || false)
