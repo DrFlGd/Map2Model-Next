@@ -12,7 +12,6 @@ verify the exact bytes after unbundling. No changes to Lead-owned desktop code.
 import hashlib
 import json
 import pathlib
-import shutil
 import sys
 
 # Intentional choices among already-declared SPDX alternatives. Future Cargo
@@ -59,10 +58,34 @@ def load_source():
     if b"Rust third-party dependency license/NOTICE texts" not in body:
         raise ValueError("unrecognized source NOTICE bundle")
     for p in packages:
+        texts = {}
         for f in p["files"]:
             heading = f"## {p['name']} {p['version']} — {pathlib.Path(f['relativePath']).name}"
-            if heading.encode("utf-8") not in body:
+            needle = heading.encode("utf-8")
+            start = body.find(needle)
+            if start < 0:
                 raise ValueError(f"missing materialized license text section {heading}")
+            end = body.find(b"\n---\n", start)
+            texts[f["relativePath"]] = body[start:end if end >= 0 else None].decode("utf-8")
+        chosen = actual_choices[f"{p['name']}@{p['version']}"]["chosenLicense"]
+        # Catch the subtle case of a crate distributing only AUTHORS/NOTICE
+        # without a separate LICENSE-MIT file. r-efi's AUTHORS contains the
+        # full MIT grant and disclaimer, which is valid source-text evidence.
+        if "MIT" in chosen and not any(
+            "Permission is hereby granted" in text and
+            "THE SOFTWARE IS PROVIDED" in text for text in texts.values()
+        ):
+            raise ValueError(f"selected MIT license text not found for {p['name']}")
+        if chosen == "Apache-2.0" and not any(
+            "Apache License" in text and "Version 2.0" in text
+            for text in texts.values()
+        ):
+            raise ValueError(f"selected Apache license text not found for {p['name']}")
+        if "Unicode-3.0" in chosen and not any(
+            "UNICODE" in path.upper() and "Unicode" in text
+            for path, text in texts.items()
+        ):
+            raise ValueError(f"mandatory Unicode-3.0 license notice missing for {p['name']}")
     return data, body, actual_choices
 
 
