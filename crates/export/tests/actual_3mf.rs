@@ -301,3 +301,112 @@ fn independent_python_standard_library_reopens_actual_rust_generated_3mf() {
     );
     assert!((report["volumeMm3"].as_f64().unwrap() - 1_449_600.0).abs() < 1e-6);
 }
+
+#[test]
+fn interrupted_old_stage_does_not_block_retry_and_is_never_overwritten() {
+    let (grid, request, source) = fixtures();
+    let result = build_mesh(&grid, &request).unwrap();
+    let artifact = export_3mf(&result, &grid, &request, &source).unwrap();
+    let parent = std::env::temp_dir().join(format!(
+        "m2m-stale-stage-{}-{}",
+        std::process::id(),
+        &artifact.package_sha256[..12]
+    ));
+    std::fs::create_dir_all(&parent).unwrap();
+    let target = parent.join("retry.3mf");
+    let old_stage = parent.join(format!(
+        ".retry.3mf.{}.{}.staging",
+        std::process::id(),
+        &artifact.package_sha256[..16]
+    ));
+    let _ = std::fs::remove_file(&target);
+    std::fs::write(&old_stage, b"crashed old deterministic staging attempt").unwrap();
+
+    write_3mf_atomic(&target, &artifact, || false).unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), artifact.bytes);
+    assert_eq!(
+        std::fs::read(&old_stage).unwrap(),
+        b"crashed old deterministic staging attempt"
+    );
+    assert_eq!(
+        std::fs::read_dir(&parent).unwrap().count(),
+        2,
+        "the exporter must remove only its own freshly allocated staging name"
+    );
+    std::fs::remove_file(&target).unwrap();
+    std::fs::remove_file(&old_stage).unwrap();
+
+    // A failed/cancelled attempt must not leave a new stage behind;
+    // a later request to the identical native-authorized destination succeeds.
+    let mut polls = 0;
+    let err = write_3mf_atomic(&target, &artifact, || {
+        polls += 1;
+        polls == 2
+    })
+    .unwrap_err();
+    assert_eq!(err.code, "CANCELLED");
+    assert!(!target.exists());
+    assert_eq!(std::fs::read_dir(&parent).unwrap().count(), 0);
+    write_3mf_atomic(&target, &artifact, || false).unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), artifact.bytes);
+    std::fs::remove_file(&target).unwrap();
+    std::fs::remove_dir(&parent).unwrap();
+}
+
+#[test]
+fn concurrent_same_destination_attempts_never_clobber_or_leave_stage() {
+    use std::sync::{Arc, Barrier};
+    let (grid, request, source) = fixtures();
+    let result = build_mesh(&grid, &request).unwrap();
+    let artifact = Arc::new(export_3mf(&result, &grid, &request, &source).unwrap());
+    let parent = std::env::temp_dir().join(format!(
+        "m2m-concurrent-export-{}-{}",
+        std::process::id(),
+        &artifact.package_sha256[..12]
+    ));
+    std::fs::create_dir_all(&parent).unwrap();
+    let target = parent.join("race.3mf");
+    let _ = std::fs::remove_file(&target);
+    let gate = Arc::new(Barrier::new(2));
+    let threads = (0..2).map(|_| {
+        let gate = Arc::clone(&gate);
+        let artifact = Arc::clone(&artifact);
+        let destination = target.clone();
+        std::thread::spawn(move || {
+            gate.wait();
+            write_3mf_atomic(&destination, &artifact, || false)
+        })
+    }).collect::<Vec<_>>();
+    let outcomes = threads.into_iter().map(|t| t.join().unwrap()).collect::<Vec<_>>();
+    assert_eq!(outcomes.iter().filter(|o| o.is_ok()).count(), 1);
+    assert_eq!(outcomes.iter().filter(|o| o.is_err()).count(), 1);
+    assert_eq!(std::fs::read(&target).unwrap(), artifact.bytes);
+    assert_eq!(
+        std::fs::read_dir(&parent).unwrap().count(),
+        1,
+        "no temporary staging files survive a concurrent publication"
+    );
+    std::fs::remove_file(&target).unwrap();
+    std::fs::remove_dir(&parent).unwrap();
+}
+
+#[test]
+fn invalid_zip_sha_is_rejected_before_staging() {
+    let (grid, request, source) = fixtures();
+    let result = build_mesh(&grid, &request).unwrap();
+    let mut artifact = export_3mf(&result, &grid, &request, &source).unwrap();
+    artifact.bytes[0] ^= 0xff;
+    let target = std::env::temp_dir().join(format!(
+        "m2m-invalid-zip-{}-{}.3mf",
+        std::process::id(),
+        &artifact.package_sha256[..12]
+    ));
+    let _ = std::fs::remove_file(&target);
+    assert_eq!(
+        write_3mf_atomic(&target, &artifact, || false)
+            .unwrap_err()
+            .code,
+        "HASH_MISMATCH"
+    );
+    assert!(!target.exists());
+}
