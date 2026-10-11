@@ -304,7 +304,10 @@ struct InspectedArchive {
     header: Header,
     tiles: BTreeMap<u64, TileRecord>,
 }
-fn inspect_archive(bytes: &[u8], require_terrarium_metadata: bool) -> Result<InspectedArchive, String> {
+fn inspect_archive(
+    bytes: &[u8],
+    require_terrarium_metadata: bool,
+) -> Result<InspectedArchive, String> {
     let h = parse_header(bytes)?;
     let meta = decompress(
         section(bytes, h.metadata.0, h.metadata.1, "metadata")?,
@@ -488,11 +491,18 @@ pub fn inspect_unverified_local_pmtiles(
     )?;
     let metadata: serde_json::Value = serde_json::from_slice(&raw_metadata)
         .map_err(|_| err("INVALID_SOURCE", "unverified archive metadata invalid"))?;
-    let observed_zoom = |id: u64| {
-        (header.min_zoom..=header.max_zoom).find(|z| tile_id_in_zoom(id, *z, *z))
-    };
-    let actual_min_zoom = inspected.tiles.keys().next().and_then(|id| observed_zoom(*id));
-    let actual_max_zoom = inspected.tiles.keys().next_back().and_then(|id| observed_zoom(*id));
+    let observed_zoom =
+        |id: u64| (header.min_zoom..=header.max_zoom).find(|z| tile_id_in_zoom(id, *z, *z));
+    let actual_min_zoom = inspected
+        .tiles
+        .keys()
+        .next()
+        .and_then(|id| observed_zoom(*id));
+    let actual_max_zoom = inspected
+        .tiles
+        .keys()
+        .next_back()
+        .and_then(|id| observed_zoom(*id));
     let sample = if let Some((z, x, y)) = requested_tile {
         let id = tile_id(z, x, y)?;
         let record = inspected.tiles.get(&id).ok_or_else(|| {
