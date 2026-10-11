@@ -10,7 +10,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 fn usage() -> &'static str {
-    "Usage:\n  terrain_offline inspect <local.pmtiles> [zoom x y]\n  terrain_offline decode <local.pmtiles> <private-registry-dir> <source-declaration.json> <selection.json> <zoom> <output-grid.json>\n\ninspect: offline format/512px verification only; source datum/license unverified; never Generation Ready.\ndecode: requires explicit verified *caller declaration* and frozen SelectionV1; create-new grid output; NOT independent rights/datum approval."
+    "Usage:\n  terrain_offline inspect <local.pmtiles> [zoom x y]\n  terrain_offline experimental-local <local.pmtiles> <expected-sha256> <selection.json> <zoom> <consent-token> <output-preview.json>\n  terrain_offline decode <local.pmtiles> <private-registry-dir> <source-declaration.json> <selection.json> <zoom> <output-grid.json>\n\ninspect: offline format/512px verification only; source datum/license unverified; never Generation Ready.\nexperimental-local: explicit local-only candidate raster (NOT a verified grid), requires expected SHA, SelectionV1 and exact acknowledgment; no datum or rights certification.\ndecode: requires explicit verified *caller declaration* and frozen SelectionV1; create-new grid output; NOT independent rights/datum approval."
 }
 fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
     let info = fs::symlink_metadata(path).map_err(|_| "DATA_MISSING: JSON input not found")?;
@@ -83,6 +83,46 @@ fn execute(args: &[String]) -> Result<serde_json::Value, String> {
                 "gridHeight": grid.height,
                 "verticalDatumId": grid.vertical_datum_id,
                 "licenseAndDatumIndependentlyVerified": false,
+                "productionGenerationReady": false,
+                "networkRequests": 0
+            }))
+        }
+        [action, file, sha, selection_json, zoom, consent, output]
+            if action == "experimental-local" =>
+        {
+            let selection: SelectionV1 = read_json(Path::new(selection_json))?;
+            validation::validate_selection(&selection)?;
+            let zoom: u8 = parse(zoom, "zoom")?;
+            let preview = decode_experimental_local_pmtiles(
+                Path::new(file),
+                sha,
+                &selection,
+                zoom,
+                consent,
+            )?;
+            let serialized = serde_json::to_vec_pretty(&preview)
+                .map_err(|_| "INVALID_SOURCE: preview cannot serialize")?;
+            let mut dest = OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(output)
+                .map_err(|_| "INVALID_SOURCE: experimental output exists or cannot be created")?;
+            if let Err(error) = dest.write_all(&serialized).and_then(|()| dest.sync_all()) {
+                drop(dest);
+                let _ = fs::remove_file(output);
+                return Err(format!("INVALID_SOURCE: experimental output write failed: {error}"));
+            }
+            Ok(serde_json::json!({
+                "result": "experimental-private-local-candidate-raster-only",
+                "kind": "ExperimentalLocalTerrainPreviewV1",
+                "previewPath": output,
+                "sourceArchiveSha256": preview["sourceArchiveSha256"],
+                "selectionId": preview["selectionId"],
+                "candidateHeightsSha256": preview["candidateHeightsSha256"],
+                "width": preview["width"],
+                "height": preview["height"],
+                "verticalDatumStatus": "unknown",
+                "sourceLicenseVerified": false,
                 "productionGenerationReady": false,
                 "networkRequests": 0
             }))
