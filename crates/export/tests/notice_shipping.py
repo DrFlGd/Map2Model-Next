@@ -20,6 +20,8 @@ import sys
 CHOICES = {
     "MIT": "MIT",
     "MIT OR Apache-2.0": "MIT",
+    # adler2: dual/triple option; full bundled MIT grant verified by text check below.
+    "0BSD OR MIT OR Apache-2.0": "MIT",
     "Apache-2.0 OR MIT": "MIT",
     "Unlicense OR MIT": "MIT",
     "MIT/Apache-2.0": "MIT",
