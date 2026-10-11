@@ -124,7 +124,7 @@ test('forbidden noncanonical JSON, duplicates, fake algorithm and wrong domain r
   changed.algorithm = 'Ed25519';
   rejection('unsigned algorithm downgrade', canonicalize(changed));
   const sig = JSON.parse(raw);
-  sig.signatureEd25519Base64 = sig.signatureEd25519Base64.replace(/^./, 'A');
+  sig.signatureEd25519Base64 = (sig.signatureEd25519Base64[0] === 'A' ? 'B' : 'A') + sig.signatureEd25519Base64.slice(1);
   rejection('detached signature altered', canonicalize(sig));
   assert.throws(() => testOnlyKeypair('wrong'), /UNTRUSTED_ENCODING_EVIDENCE/);
 });
