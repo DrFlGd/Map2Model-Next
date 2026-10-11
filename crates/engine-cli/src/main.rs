@@ -1,6 +1,7 @@
 //! A1-04 native-only offline host. No renderer filesystem operations or
 //! real-source generation are authorized by this stdio interface.
 mod synthetic;
+mod pmtiles_demo;
 
 use serde_json::{json, Value};
 use std::env;
@@ -185,6 +186,35 @@ fn main() -> ExitCode {
         Some("--health") => {
             println!("{}", health(None));
             ExitCode::SUCCESS
+        }
+        Some("--export-original-pmtiles") => {
+            // Only Electron main supplies the fixed bundled original synthetic
+            // source path and the OS Save dialog-derived destination.
+            let args = env::args().skip(2).collect::<Vec<_>>();
+            let response = match args.as_slice() {
+                [source_dir, destination] => match pmtiles_demo::export_fixture(
+                    std::path::Path::new(source_dir),
+                    std::path::Path::new(destination),
+                ) {
+                    Ok(result) => json!({"status":"ok", "result":result}),
+                    Err(reason) => {
+                        let code = reason.split(':').next().unwrap_or("");
+                        let safe = match code {
+                            "INVALID_REQUEST" | "INVALID_SOURCE" | "HASH_MISMATCH"
+                            | "DATA_MISSING" | "UNSUPPORTED_DATUM" | "INVALID_SELECTION"
+                            | "INVALID_DIMENSIONS" | "INVALID_GEOMETRY" | "INVALID_GRID_HASH"
+                            | "INCOMPLETE_GRID" | "NON_MANIFOLD_MESH" | "OUT_OF_MEMORY"
+                            | "EXPORT_FAILED" => code,
+                            _ => "INTERNAL_ERROR",
+                        };
+                        error_response(None, safe, "Original synthetic PMTiles export failed")
+                    }
+                },
+                _ => error_response(None, "INVALID_REQUEST", "Expected synthetic fixture root and native output path"),
+            };
+            let success = response["status"] == "ok";
+            println!("{response}");
+            if success { ExitCode::SUCCESS } else { ExitCode::from(1) }
         }
         Some("--export-synthetic") => {
             // This internal command is launched only by Electron main after its
