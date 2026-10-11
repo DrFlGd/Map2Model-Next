@@ -191,24 +191,33 @@ fn main() -> ExitCode {
             // native Save dialog; no renderer may provide an arbitrary path.
             let destination = env::args().nth(2);
             let response = match destination {
-                Some(destination) => match synthetic::export_to(std::path::Path::new(&destination)) {
+                Some(destination) => match synthetic::export_to(std::path::Path::new(&destination))
+                {
                     Ok(result) => json!({"status":"ok","result":result}),
                     Err(reason) => {
                         let code = reason.split(':').next().unwrap_or("");
                         let safe = match code {
-                            "INVALID_REQUEST" | "HASH_MISMATCH" | "DATA_MISSING" |
-                            "INVALID_GEOMETRY" | "INVALID_DIMENSIONS" | "EXPORT_FAILED" |
-                            "OUT_OF_MEMORY" | "UNSUPPORTED_DATUM" | "INCOMPLETE_GRID" => code,
+                            "INVALID_REQUEST" | "HASH_MISMATCH" | "DATA_MISSING"
+                            | "INVALID_GEOMETRY" | "INVALID_DIMENSIONS" | "EXPORT_FAILED"
+                            | "OUT_OF_MEMORY" | "UNSUPPORTED_DATUM" | "INCOMPLETE_GRID" => code,
                             _ => "INTERNAL_ERROR",
                         };
                         error_response(None, safe, "Synthetic 3MF native export failed")
                     }
                 },
-                None => error_response(None, "INVALID_REQUEST", "Missing approved output destination"),
+                None => error_response(
+                    None,
+                    "INVALID_REQUEST",
+                    "Missing approved output destination",
+                ),
             };
             let success = response["status"] == "ok";
             println!("{response}");
-            if success { ExitCode::SUCCESS } else { ExitCode::from(1) }
+            if success {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
         }
         Some("--smoke-mesh") => {
             let outcome = synthetic_response("smoke-1");
