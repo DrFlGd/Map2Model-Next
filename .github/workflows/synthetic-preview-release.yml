@@ -1,13 +1,15 @@
-name: A1-05 Synthetic Terrain Windows Preview
+name: A1-06 Original Synthetic PMTiles Windows Preview
 
 on:
   push:
     branches:
-      - agent/lead-A1-05-synthetic-prototype
+      - agent/lead-A1-06-integrated-pmtiles-preview
     paths:
       - 'apps/desktop/**'
       - 'crates/engine-cli/**'
       - 'crates/export/**'
+      - 'crates/data/**'
+      - 'tests/**'
       - 'Cargo.toml'
       - 'package.json'
       - '.github/workflows/synthetic-preview-release.yml'
@@ -51,6 +53,31 @@ jobs:
           $json | Set-Content -Encoding utf8 native-integration-report.json
           python crates/export/tests/independent_3mf.py $target crates/engine/fixtures/A3-01.reference.json
           if($LASTEXITCODE -ne 0){throw 'Independent 3MF reader rejected Rust result'}
+      - name: Generate original 512px CC0 WebP PMTiles fixture and export native 3MF
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          cargo build --release -p map2model-data --bin terrain_synthetic_fixture
+          if($LASTEXITCODE -ne 0){throw 'Original test raster fixture compiler failed'}
+          $root=Join-Path (Resolve-Path 'target/release').Path 'synthetic-terrain-input'
+          & ./target/release/terrain_synthetic_fixture.exe $root
+          if($LASTEXITCODE -ne 0){throw 'Original PMTiles fixture generation failed'}
+          $export=Join-Path $env:RUNNER_TEMP 'original-synthetic-pmtiles.3mf'
+          $json=& ./target/release/map2model-engine.exe --export-original-pmtiles $root $export
+          if($LASTEXITCODE -ne 0){throw 'Actual original PMTiles -> 3MF failed'}
+          $json | Set-Content -Encoding utf8 native-original-pmtiles-report.json
+          python tests/verify_original_pmtiles_3mf.py $export native-original-pmtiles-report.json
+          if($LASTEXITCODE -ne 0){throw 'Independent original PMTiles 3MF validation failed'}
+      - name: Prepare and verify native dependency notices for packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python crates/export/tests/cargo_license_texts.py
+          if($LASTEXITCODE -ne 0){throw 'Cannot collect Rust dependency notices'}
+          python crates/export/tests/notice_shipping.py stage target/release
+          if($LASTEXITCODE -ne 0){throw 'Native license candidate staging failed'}
+          python crates/export/tests/notice_shipping.py verify target/release
+          if($LASTEXITCODE -ne 0){throw 'Native license candidate verification failed'}
       - name: Install Electron and pinned UI tools
         run: npm install --no-audit --no-fund
       - name: Test offline desktop shell and bundle renderer
@@ -63,59 +90,71 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $exe='release/Map2Model-Next-0.0.2-x64.exe'
+          $exe='release/Map2Model-Next-0.0.3-x64.exe'
           if(-not(Test-Path -LiteralPath $exe -PathType Leaf)){throw 'Portable EXE not packaged'}
           $size=(Get-Item -LiteralPath $exe).Length
           if($size -lt 50000000){throw 'Unexpectedly small portable EXE; native engine may be missing'}
+          foreach($required in @(
+            'release/win-unpacked/resources/bin/map2model-engine.exe',
+            'release/win-unpacked/resources/synthetic-terrain/complete.pmtiles',
+            'release/win-unpacked/resources/synthetic-terrain/complete.source.json',
+            'release/win-unpacked/resources/synthetic-terrain/selection.json',
+            'release/win-unpacked/resources/legal/THIRD_PARTY_NOTICES.md',
+            'release/win-unpacked/resources/legal/THIRD_PARTY_NOTICES.manifest.json')) {
+            if(-not(Test-Path -LiteralPath $required -PathType Leaf)){throw "Missing unpacked distributable resource: $required"}
+          }
           $sha=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Map2Model-Next-0.0.2-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.2-x64.exe.sha256'
+          "$sha  Map2Model-Next-0.0.3-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.3-x64.exe.sha256'
           @(
             "sourceCommit=$env:GITHUB_SHA"
             "workflowRun=$env:GITHUB_RUN_ID"
             "portableExeSha256=$sha"
             "portableExeBytes=$size"
             "nativeEngineBundledAt=resources/bin/map2model-engine.exe"
-            "sourceType=SYNTHETIC G0 fixture ONLY"
+            "sourceType=G0 synthetic fixture plus ORIGINAL CC0 512px PMTiles; NO real source"
             "noRealMapterhorn=TRUE"
             "native3mfVerified=TRUE"
+            "actualSyntheticPmtilesDecodeMesh3mf=TRUE"
+            "RustNoticesBundled=TRUE; legal review pending"
             "physicalWindowsGUIAndSlicerSmoke=PENDING"
           ) | Set-Content -Encoding utf8 'release/BUILD-PROVENANCE.txt'
           Write-Output "Portable Windows preview size=$size SHA256=$sha"
       - name: Retain portable Windows prototype as Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Map2Model-Next-0.0.2-Synthetic-Windows
+          name: Map2Model-Next-0.0.3-Original-PMTiles-Windows
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
           path: |
-            release/Map2Model-Next-0.0.2-x64.exe
-            release/Map2Model-Next-0.0.2-x64.exe.sha256
+            release/Map2Model-Next-0.0.3-x64.exe
+            release/Map2Model-Next-0.0.3-x64.exe.sha256
             release/BUILD-PROVENANCE.txt
             native-integration-report.json
+            native-original-pmtiles-report.json
             Cargo.lock
       - name: Write clearly scoped prerelease notes
         shell: pwsh
         run: |
           @'
-          Map2Model Next v0.0.2 — Synthetic Terrain Preview (unsigned Windows x64)
+          Map2Model Next v0.0.3 — Original Synthetic PMTiles Terrain Preview (unsigned Windows x64)
 
           WHAT WORKS:
           - Offline Electron workspace: geographic rectangle selection and local project save/reopen.
-          - Export SYNTHETIC demo 3MF using a trusted native Windows Save dialog.
-          - Actual frozen synthetic grid -> Rust watertight terrain mesh -> real 3MF with embedded provenance.
+          - Export SYNTHETIC G0 demo 3MF or ORIGINAL 512px CC0 WebP PMTiles->real ElevationGridV1->mesh->3MF through a trusted Windows Save dialog.
+          - Two separate original synthetic paths; actual PMTiles tile decoding, source/grid hashes and genuine OPC/provenance checks.
           - Native ZIP/OPC/geometry readback plus independent Python reader and SHA checks in CI.
           - The output reference should measure 180 x 80 x 204 mm (24 vertices, 44 triangles).
 
           NOT YET IMPLEMENTED / ACCEPTED:
-          - Geographic-selection terrain generation or Mapterhorn source import in GUI.
+          - Geographic-selection-driven generation or verified real Mapterhorn import. Original synthetic sample is FIXED; drawn map area is not generated.
           - Real terrain datum/rights/native accuracy/source acceptance.
           - Physical Windows GUI acceptance and two-slicer acceptance.
           - Full G0 JobState progress/cancellation or production release signing.
 
           This is an UNSIGNED development prototype and a GitHub prerelease, NOT a production version.
           Download the Windows EXE and check the adjacent SHA256 file before executing.
-          'GUI exports are fixed synthetic demo data only, not the user-drawn selection.'
+          'Both GUI demos use original mathematical synthetic data, not the user-drawn selection.'
           '@ | Set-Content -Encoding utf8 release/RELEASE-NOTES.txt
       - name: Publish GitHub prerelease only after all checks pass
         shell: pwsh
@@ -123,6 +162,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag="v0.0.2-synthetic-preview.$env:GITHUB_RUN_NUMBER"
-          gh release create $tag 'release/Map2Model-Next-0.0.2-x64.exe' 'release/Map2Model-Next-0.0.2-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.2 — Synthetic Windows Preview" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
+          $tag="v0.0.3-original-pmtiles-preview.$env:GITHUB_RUN_NUMBER"
+          gh release create $tag 'release/Map2Model-Next-0.0.3-x64.exe' 'release/Map2Model-Next-0.0.3-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.3 — Synthetic Windows Preview" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
           if($LASTEXITCODE -ne 0){throw 'GitHub prerelease publish failed'}
