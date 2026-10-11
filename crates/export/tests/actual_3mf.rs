@@ -368,16 +368,21 @@ fn concurrent_same_destination_attempts_never_clobber_or_leave_stage() {
     let target = parent.join("race.3mf");
     let _ = std::fs::remove_file(&target);
     let gate = Arc::new(Barrier::new(2));
-    let threads = (0..2).map(|_| {
-        let gate = Arc::clone(&gate);
-        let artifact = Arc::clone(&artifact);
-        let destination = target.clone();
-        std::thread::spawn(move || {
-            gate.wait();
-            write_3mf_atomic(&destination, &artifact, || false)
+    let threads = (0..2)
+        .map(|_| {
+            let gate = Arc::clone(&gate);
+            let artifact = Arc::clone(&artifact);
+            let destination = target.clone();
+            std::thread::spawn(move || {
+                gate.wait();
+                write_3mf_atomic(&destination, &artifact, || false)
+            })
         })
-    }).collect::<Vec<_>>();
-    let outcomes = threads.into_iter().map(|t| t.join().unwrap()).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
+    let outcomes = threads
+        .into_iter()
+        .map(|t| t.join().unwrap())
+        .collect::<Vec<_>>();
     assert_eq!(outcomes.iter().filter(|o| o.is_ok()).count(), 1);
     assert_eq!(outcomes.iter().filter(|o| o.is_err()).count(), 1);
     assert_eq!(std::fs::read(&target).unwrap(), artifact.bytes);
