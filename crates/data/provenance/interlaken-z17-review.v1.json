@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "review-1",
+  "kind": "UnverifiedTerrainProvenanceReview",
+  "advisoryOnly": true,
+  "sourceName": "Mapterhorn Interlaken z17 private owner extract",
+  "archiveSha256": "75e03d8e0ec36d347ee4ed412ed816d67af53309236a52ecb028930c99f06aa0",
+  "archiveBytes": 3127295,
+  "earlierMalformedHeaderArchiveSha256": "40f452bd2449ac0b119efd1cabfcd1a0937d375865e4795810bf82d4743ad5ce",
+  "regionBboxWgs84": [
+    7.88,
+    46.68,
+    7.89,
+    46.69
+  ],
+  "observedTileZoomCounts": {
+    "13": 1,
+    "14": 2,
+    "15": 4,
+    "16": 9,
+    "17": 24
+  },
+  "webpTileSizePixels": 512,
+  "officialPublisherEncodingDocumentation": {
+    "publisher": "Mapterhorn",
+    "publisherRepositoryCommitSha": "775663e9ca58c7fe741dbd53fbe4461cb73a9bb9",
+    "pipelineImplementationGitBlobSha": "e2ada1cd53e5ca3b52dba9800cfe9d94b5750eed",
+    "pipelineDocumentationGitBlobSha": "6f3b5a5dd9e69a8458ccb8249a4b06603167a54f",
+    "metadataBehavior": "attribution-only PMTiles JSON by publisher design",
+    "declaredRgbEncoding": "terrarium",
+    "exactArchiveEncodingAttested": false
+  },
+  "candidateContributor": {
+    "catalogEntry": "swissalti3d",
+    "catalogMetadataGitBlobSha": "23b54587f2925eabb20bf4346252a17c02d5794c",
+    "catalogNominalSourceResolutionMeters": 0.5,
+    "swisstopoPublishedVerticalSystem": "LV95 / LN02",
+    "swisstopoPublishedSourceFormatsMeters": [
+      0.5,
+      2
+    ],
+    "regionSpecificContributionVerified": false
+  },
+  "provenanceGates": {
+    "parentReleaseCryptographicallyPinned": false,
+    "regionConstituentSourceSetVerified": false,
+    "sourceLicenseVerified": false,
+    "sourceAttributionVerified": false,
+    "nativeResolutionVerified": false,
+    "verticalDatumStatus": "unknown",
+    "verticalDatumVerified": false,
+    "exactArchiveEncodingAttestationSignatureVerified": false,
+    "redistributionApproved": false,
+    "productionGenerationReady": false
+  },
+  "privateSourceBytesIncluded": false,
+  "evidenceReadme": "crates/data/INTERLAKEN-PROVENANCE-REVIEW-2026-10-11.md",
+  "nextApplicationTest": "Lead A1-04 integrated Windows preview, not standalone source inspector"
+}
