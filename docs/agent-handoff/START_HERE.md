@@ -8,6 +8,7 @@
 
 **Read the current, authoritative instructions before working from the original role briefs:**
 
+- **[A1-04 integration dispatch and latest Agent 2/3 acceptance gates](A1-04-INTEGRATION-DISPATCH-2026-10-10.md)** — newest exact PR heads, real-source format vs authorization, actual Rust 3MF slicer testing, and lead implementation sequence. Read this first.
 - **[G1 active actions for Agent 2, Agent 3 and lead](G1-NEXT-ACTIONS-2026-10-10.md)** — exact PR links, present acceptance gaps, 3MF writer decision, agent ownership and synthetic-first Windows build sequence.
 - **[Real Mapterhorn sample and source-datum protocol](MAPTERHORN-SAMPLE-PROTOCOL.md)** — official endpoints, test extract commands, attribution/licensing diligence, real 512x512 data inspection, and fail-closed vertical datum rules.
 
