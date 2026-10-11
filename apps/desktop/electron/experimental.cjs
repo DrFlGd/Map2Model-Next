@@ -8,6 +8,7 @@ const runBinary=promisify(execFile);
 const POLICY='PRIVATE-LOCAL-TERRAIN-2026-10-11';
 function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEnginePath,runNative=runBinary}){
  const pending=new Map();
+ const running=new Map();
  handler('selectExperimentalSource',async payload=>{
    const {assertSelection}=await import('../shared/selection.mjs');
    const selection=assertSelection(payload.selection);
