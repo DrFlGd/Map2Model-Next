@@ -40,6 +40,9 @@ jobs:
       - name: Open Rust-generated 3MF with third-party trimesh reader
         shell: bash
         run: python crates/export/tests/trimesh_import_3mf.py ./synthetic-terrain.3mf crates/engine/fixtures/A3-01.reference.json | tee trimesh-import-report.json
+      - name: Validate model XML against published 3MF Core 1.4 Consortium XSD
+        shell: bash
+        run: python crates/export/tests/core_xsd_check.py ./synthetic-terrain.3mf | tee core-1.4-xsd-report.json
       - name: Correlate two independent reader reports with Rust-produced ZIP SHA
         shell: bash
         run: |
@@ -55,3 +58,4 @@ jobs:
             rust-export-report.txt
             independent-opc-report.json
             trimesh-import-report.json
+            core-1.4-xsd-report.json
