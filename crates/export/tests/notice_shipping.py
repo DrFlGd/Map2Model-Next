@@ -56,14 +56,23 @@ def load_source():
         # The full MIT grant+disclaimer must also appear in the actual source
         # LICENSE/NOTICE files, checked below. Human release review remains pending.
         alternatives = expression.split(" OR ") if isinstance(expression, str) else []
+        reviewed = {"MIT", "Apache-2.0", "0BSD", "Zlib", "BSD-2-Clause", "BSD-3-Clause"}
         eligible = (
-            len(alternatives) > 1 and "MIT" in alternatives
+            len(alternatives) > 1
             and len(set(alternatives)) == len(alternatives)
-            and set(alternatives).issubset({"MIT", "Apache-2.0", "0BSD", "Zlib"})
+            and set(alternatives).issubset(reviewed)
         )
         if (expression not in CHOICES and not eligible) or not p["files"]:
             raise ValueError(f"human license decision required for {p['name']}@{p['version']}: {expression}")
-        selection = CHOICES.get(expression, "MIT" if eligible else None)
+        # Favor MIT when explicitly offered; otherwise Apache-2.0 when
+        # explicitly offered. Both require the actual full source grant below.
+        selection = CHOICES.get(expression)
+        if selection is None and eligible:
+            selection = "MIT" if "MIT" in alternatives else (
+                "Apache-2.0" if "Apache-2.0" in alternatives else None
+            )
+        if selection is None:
+            raise ValueError(f"no reviewed explicit full-text license option: {expression}")
         actual_choices[f"{p['name']}@{p['version']}"] = {
             "declaredSpdx": expression,
             "chosenLicense": selection,
