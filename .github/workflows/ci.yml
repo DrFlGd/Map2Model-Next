@@ -22,9 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - name: Install schema and compiler test tooling
+      - name: Install locked-version dependencies
         run: npm install --no-audit --no-fund --ignore-scripts
-      - name: Validate TypeScript, schemas and fixtures
+      - name: Validate TypeScript, contracts, desktop project tests and local renderer bundle
         run: npm run ci
       - uses: dtolnay/rust-toolchain@stable
         with:
