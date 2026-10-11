@@ -418,9 +418,91 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
         tiles: records,
     })
 }
+
+/// Untrusted source-format inspection ONLY. This deliberately does not create a
+/// TerrainSourceManifestV1, register tokens, or assert datum/license readiness.
+/// Intended for a developer-acquired local PMTiles extract; no network I/O.
+pub fn inspect_unverified_local_pmtiles(
+    source_path: &Path,
+    requested_tile: Option<(u8, u32, u32)>,
+) -> Result<serde_json::Value, String> {
+    let original = fs::symlink_metadata(source_path)
+        .map_err(|_| err("DATA_MISSING", "unverified PMTiles sample unavailable"))?;
+    if !original.is_file() || original.file_type().is_symlink()
+        || original.len() < HEADER_BYTES as u64 || original.len() > MAX_ARCHIVE_BYTES {
+        return Err(err("INVALID_SOURCE", "local sample must be a bounded ordinary PMTiles file"));
+    }
+    let mut handle = OpenOptions::new().read(true).open(source_path)
+        .map_err(|_| err("DATA_MISSING", "cannot open sample"))?;
+    let metadata = handle.metadata().map_err(|_| err("INVALID_SOURCE", "sample metadata unavailable"))?;
+    if !metadata.is_file() || metadata.len() != original.len() {
+        return Err(err("INVALID_SOURCE", "sample changed before inspection"));
+    }
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut handle).take(MAX_ARCHIVE_BYTES + 1).read_to_end(&mut bytes)
+        .map_err(|_| err("INVALID_SOURCE", "bounded sample read failed"))?;
+    if bytes.len() as u64 != original.len() || bytes.len() as u64 > MAX_ARCHIVE_BYTES {
+        return Err(err("INVALID_SOURCE", "sample changed during inspection"));
+    }
+    let updated = fs::symlink_metadata(source_path)
+        .map_err(|_| err("DATA_MISSING", "sample removed during inspection"))?;
+    if !updated.is_file() || updated.file_type().is_symlink() || updated.len() != original.len() {
+        return Err(err("INVALID_SOURCE", "sample path changed during inspection"));
+    }
+    let inspected = inspect(&bytes)?;
+    let header = &inspected.header;
+    let raw_metadata = decompress(
+        section(&bytes, header.metadata.0, header.metadata.1, "metadata")?,
+        header.internal_compression, MAX_METADATA_BYTES)?;
+    let metadata: serde_json::Value = serde_json::from_slice(&raw_metadata)
+        .map_err(|_| err("INVALID_SOURCE", "unverified archive metadata invalid"))?;
+    let sample = if let Some((z, x, y)) = requested_tile {
+        let id = tile_id(z, x, y)?;
+        let record = inspected.tiles.get(&id).ok_or_else(|| {
+            err("DATA_MISSING", "requested tile absent from actual PMTiles index")
+        })?;
+        let encoded = section(&bytes, record.offset, u64::from(record.length), "sample tile")?;
+        let webp = decompress(encoded, header.tile_compression, MAX_TILE_BYTES)?;
+        let tile = terrarium::decode_terrarium_webp(&webp)?;
+        serde_json::json!({
+            "z": z, "x": x, "y": y, "verifiedDirectoryEntry": true,
+            "webpWidth": 512, "webpHeight": 512,
+            "compressedTileBytes": record.length,
+            "decodedWebpBytes": webp.len(),
+            "elevationNorthWestMeters": tile.height(0,0),
+            "elevationCenterMeters": tile.height(256,256),
+            "elevationSouthEastMeters": tile.height(511,511),
+            "maskedPixelCount": tile.number_of_missing_pixels()
+        })
+    } else { serde_json::Value::Null };
+    Ok(serde_json::json!({
+        "inspectionKind": "UnverifiedLocalPMTilesFormatV1",
+        "archiveSha256": digest(&bytes),
+        "archiveBytes": bytes.len(),
+        "tileType": "WebP",
+        "encodingDeclaredInMetadata": metadata.get("encoding"),
+        "nameDeclaredInMetadata": metadata.get("name"),
+        "headerCoverageBbox": header.bbox,
+        "headerMinZoom": header.min_zoom,
+        "headerMaxZoom": header.max_zoom,
+        "indexedTileCount": inspected.tiles.len(),
+        "internalCompression": if header.internal_compression == 2 {"gzip"} else {"none"},
+        "tileCompression": if header.tile_compression == 2 {"gzip"} else {"none"},
+        "tileSample": sample,
+        "sampleDecodingMethod": "Terrarium R*256+G+B/256-32768",
+        "verticalDatumId": serde_json::Value::Null,
+        "verticalDatumVerified": false,
+        "sourceLicenseVerified": false,
+        "nativeResolutionVerified": false,
+        "productionGenerationReady": false,
+        "requires": "Independent version-pinned release, region-specific rights, attribution, native resolution, vertical datum and disconnected Windows acceptance"
+    }))
+}
+
 /// Release, region rights and datum MUST be established outside this parser.
 /// These are never inferred from PMTiles zoom, JSON tile attribution or WGS84.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceDeclaration {
     pub source_name: String,
     pub release_id: String,
