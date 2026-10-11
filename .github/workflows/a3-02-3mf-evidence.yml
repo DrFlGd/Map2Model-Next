@@ -41,6 +41,18 @@ jobs:
       - name: Gather actual transitive license and NOTICE texts from Cargo sources
         shell: bash
         run: python crates/export/tests/cargo_license_texts.py | tee cargo-notices-report.json
+      - name: Stage and test exact Cargo NOTICE inclusion for future Electron packaging
+        shell: bash
+        run: |
+          python crates/export/tests/notice_shipping.py stage .m2m-notice-staging | tee notice-stage-report.json
+          python crates/export/tests/notice_shipping.py verify .m2m-notice-staging
+          python -c 'from pathlib import Path; p=Path(".m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.md"); p.write_bytes(p.read_bytes() + b"tampered")'
+          if python crates/export/tests/notice_shipping.py verify .m2m-notice-staging; then
+            echo "tampered packaged NOTICE incorrectly passed" >&2
+            exit 1
+          fi
+          python crates/export/tests/notice_shipping.py stage .m2m-notice-staging
+          python crates/export/tests/notice_shipping.py verify .m2m-notice-staging
       - name: Independently validate OPC, mesh and canonical hash using Python stdlib
         shell: bash
         run: python crates/export/tests/independent_3mf.py ./synthetic-terrain.3mf crates/engine/fixtures/A3-01.reference.json | tee independent-opc-report.json
@@ -70,4 +82,7 @@ jobs:
             cargo-notices-report.json
             rust-license-texts-manifest.json
             THIRD_PARTY_RUST_NOTICES.md
+            notice-stage-report.json
+            .m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.md
+            .m2m-notice-staging/resources/legal/THIRD_PARTY_NOTICES.manifest.json
             Cargo.lock
