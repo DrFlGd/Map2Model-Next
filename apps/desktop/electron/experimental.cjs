@@ -108,6 +108,13 @@ function registerExperimentalHandlers({handler,app,dialog,getWindow,nativeEngine
      await fs.rm(temp,{recursive:true,force:true});
    }
  });
+ handler('cancelExperimentalJob',async payload=>{
+   if(typeof payload?.jobId!=='string')return {cancelRequested:false};
+   const controller=running.get(payload.jobId);
+   if(!controller)return {cancelRequested:false};
+   controller.abort();
+   return {cancelRequested:true};
+ });
  handler('discardExperimentalSource',async payload=>{
    if(typeof payload?.jobId==='string')pending.delete(payload.jobId);
    return {discarded:true};
