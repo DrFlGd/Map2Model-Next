@@ -15,3 +15,4 @@ map2model-mesh = { path = "../engine" }
 map2model-export = { path = "../export" }
 map2model-data = { path = "../data" }
 getrandom = "=0.3.4"
+sha2 = "=0.10.9"
