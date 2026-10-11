@@ -231,6 +231,6 @@ export function App(){
       className="generate">{busy?'Exporting synthetic 3MF…':'Export SYNTHETIC demo 3MF'}</button>
    </aside>
   </div>
-  <footer className="footbar"><span>Map2Model Next · Original PMTiles Terrain Preview 0.0.4</span><span>Network disabled by default · No account or external services</span></footer>
+  <footer className="footbar"><span>Map2Model Next · Private Experimental Terrain Preview 0.0.5</span><span>Network disabled by default · No account or external services</span></footer>
  </div>;
 }
