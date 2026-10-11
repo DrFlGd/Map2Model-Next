@@ -35,6 +35,9 @@ jobs:
       - name: Generate actual signed Rust 3MF and SHA evidence
         shell: bash
         run: cargo run -p map2model-export --example synthetic_3mf -- ./synthetic-terrain.3mf | tee rust-export-report.txt
+      - name: Cross-check three variable original synthetic grid-to-3MF cases and negative failures
+        shell: bash
+        run: cargo test -p map2model-export --test varied_grids -- --nocapture | tee variable-grid-export-report.txt
       - name: Inventory all resolved Cargo transitive licenses and lockfile
         shell: bash
         run: python crates/export/tests/cargo_dependency_report.py | tee cargo-license-report.json
@@ -75,6 +78,7 @@ jobs:
           path: |
             synthetic-terrain.3mf
             rust-export-report.txt
+            variable-grid-export-report.txt
             independent-opc-report.json
             trimesh-import-report.json
             core-1.4-xsd-report.json
