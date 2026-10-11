@@ -1,6 +1,7 @@
 //! Developer-only, network-free G1 geodata inspection and decode entrypoint.
 //! NOT an Electron/renderer IPC endpoint and not a source-rights approval path.
 use map2model_contracts::{validation, SelectionV1};
+use map2model_data::experimental::decode_experimental_local_pmtiles;
 use map2model_data::terrarium::decode_selection_grid;
 use map2model_data::{import_local_pmtiles, inspect_unverified_local_pmtiles, SourceDeclaration};
 use serde::de::DeserializeOwned;
