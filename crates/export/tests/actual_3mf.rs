@@ -259,7 +259,12 @@ fn independent_python_standard_library_reopens_actual_rust_generated_3mf() {
     );
     let mut output = None;
     for executable in ["python", "python3"] {
-        match Command::new(executable).args([script]).arg(&path).arg(fixture).output() {
+        match Command::new(executable)
+            .args([script])
+            .arg(&path)
+            .arg(fixture)
+            .output()
+        {
             Ok(result) => {
                 output = Some(result);
                 break;
@@ -279,7 +284,10 @@ fn independent_python_standard_library_reopens_actual_rust_generated_3mf() {
         .expect("independent 3MF verifier did not return valid JSON");
     assert_eq!(report["status"], "passed");
     assert_eq!(report["validatorId"], "python-stdlib-zipfile-etree-mesh-v1");
-    assert_eq!(report["canonicalGeometrySha256"], artifact.canonical_geometry_sha256);
+    assert_eq!(
+        report["canonicalGeometrySha256"],
+        artifact.canonical_geometry_sha256
+    );
     assert_eq!(report["packageSha256"], artifact.package_sha256);
     assert_eq!(report["provenanceSha256"], artifact.provenance_sha256);
     assert_eq!(report["vertices"], 24);
@@ -287,6 +295,9 @@ fn independent_python_standard_library_reopens_actual_rust_generated_3mf() {
     assert_eq!(report["connectedComponents"], 1);
     assert_eq!(report["undirectedManifoldEdges"], 66);
     assert_eq!(report["sourceLicenseIdentifier"], "CC0-1.0");
-    assert_eq!(report["aabbMm"], serde_json::json!([0.0,0.0,0.0,180.0,80.0,204.0]));
+    assert_eq!(
+        report["aabbMm"],
+        serde_json::json!([0.0, 0.0, 0.0, 180.0, 80.0, 204.0])
+    );
     assert!((report["volumeMm3"].as_f64().unwrap() - 1_449_600.0).abs() < 1e-6);
 }
