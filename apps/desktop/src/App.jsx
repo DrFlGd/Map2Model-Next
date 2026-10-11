@@ -141,6 +141,23 @@ export function App(){
   setProject(record);await refresh();setMessage('Saved locally. No network access was needed.');
  });
  const pick=next=>{setSelection(next);setMessage('Selection changed — save the project to keep it.');};
+ const chooseExperimental=()=>action(async()=>{
+   if(!selection||!api.selectExperimentalSource)throw Error('INVALID_SELECTION: draw a rectangle first');
+   setExperimentalSource(null);setExperimentalAccepted(false);
+   const source=await api.selectExperimentalSource(selection);
+   if(source.canceled){setMessage('Local source selection cancelled.');return;}
+   setExperimentalSource(source);
+   setMessage('Local PMTiles inspected. Source rights, datum and accuracy NOT VERIFIED.');
+ });
+ const exportExperimental=()=>action(async()=>{
+   if(!experimentalSource||!experimentalAccepted)throw Error('INVALID_REQUEST: per-job consent required');
+   const job=experimentalSource;
+   setExperimentalSource(null);setExperimentalAccepted(false);
+   const result=await api.exportExperimentalLocal(job.jobId,job.selectionId,true);
+   if(result.canceled){setMessage('Experimental export cancelled.');return;}
+   setMessage('EXPERIMENTAL PRIVATE 3MF '+result.fileName+' · '+result.vertices+
+     ' vertices · archive SHA '+result.sourceArchiveSha256+' · package SHA '+result.packageSha256);
+ });
  const exportOriginalPmtiles=()=>action(async()=>{
    if(!api.exportOriginalSyntheticPmtiles)throw Error('DATA_MISSING: synthetic PMTiles worker is unavailable');
    const result=await api.exportOriginalSyntheticPmtiles();
