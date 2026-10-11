@@ -1,6 +1,6 @@
-//! A3-02: writer-independent, fail-closed mesh-to-3MF export preflight.
-//! This crate does NOT yet create a ZIP/3MF or publish an artifact. A writer
-//! implementation requires lead approval of lib3mf SDK and its packaging.
+//! A3-02: real deterministic 3MF Core writer with fail-closed preflight,
+//! independent structural/readback validation and atomic native publication.
+//! Frozen G0 contracts stay unchanged; slicer acceptance is an external gate.
 
 pub mod package;
 
@@ -29,6 +29,33 @@ impl ExportError {
             message: message.into(),
         }
     }
+    /// Frozen JobStateV1 reasonCode for native A1-04 supervision. Internal
+    /// ZIP/OPC errors use INVALID_EXPORT, which is NOT a V1 wire reason.
+    /// Never send self.code directly to the frozen JobStateV1 boundary.
+    pub fn job_reason_code(&self) -> &'static str {
+        match self.code {
+            "CANCELLED" => "CANCELLED",
+            "DATA_MISSING" => "DATA_MISSING",
+            "INVALID_REQUEST" => "INVALID_REQUEST",
+            "INVALID_SELECTION" => "INVALID_SELECTION",
+            "INVALID_CRS" => "INVALID_CRS",
+            "UNSUPPORTED_DATUM" => "UNSUPPORTED_DATUM",
+            "HASH_MISMATCH" => "HASH_MISMATCH",
+            "INVALID_SOURCE" => "INVALID_SOURCE",
+            "OUT_OF_MEMORY" => "OUT_OF_MEMORY",
+            "NON_MANIFOLD_MESH" => "NON_MANIFOLD_MESH",
+            "INTERNAL_ERROR" => "INTERNAL_ERROR",
+            "INCOMPLETE_GRID" => "INCOMPLETE_GRID",
+            "INVALID_GRID_HASH" => "INVALID_GRID_HASH",
+            "INVALID_GEOMETRY" => "INVALID_GEOMETRY",
+            "INVALID_DIMENSIONS" => "INVALID_DIMENSIONS",
+            "NONFINITE_ELEVATION" => "NONFINITE_ELEVATION",
+            // INVALID_EXPORT / unrecognized internal errors fail closed to
+            // the already frozen public reason; no G0 contract change.
+            _ => "EXPORT_FAILED",
+        }
+    }
+
     fn contract(message: String) -> Self {
         let code = match message.split(':').next().unwrap_or("") {
             "DATA_MISSING" => "DATA_MISSING",
