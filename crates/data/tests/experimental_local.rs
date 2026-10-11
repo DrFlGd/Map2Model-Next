@@ -19,8 +19,12 @@ fn run(bin: &str, args: &[&str]) -> Output {
         .output()
         .unwrap()
 }
-fn s(p: &Path) -> &str { p.to_str().unwrap() }
-fn sha(bytes: &[u8]) -> String { format!("{:x}", Sha256::digest(bytes)) }
+fn s(p: &Path) -> &str {
+    p.to_str().unwrap()
+}
+fn sha(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
 fn tmp() -> PathBuf {
     let mut nonce = [0_u8; 16];
     fill(&mut nonce).unwrap();
@@ -32,8 +36,15 @@ fn tmp() -> PathBuf {
 }
 fn original(root: &Path) {
     fs::create_dir_all(root).unwrap();
-    let result = run(env!("CARGO_BIN_EXE_terrain_synthetic_fixture"), &[s(&root.join("source"))]);
-    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let result = run(
+        env!("CARGO_BIN_EXE_terrain_synthetic_fixture"),
+        &[s(&root.join("source"))],
+    );
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
 }
 fn preview(root: &Path, variant: &str, sha: &str, consent: &str) -> (Output, PathBuf) {
     let file = root.join("source").join(format!("{variant}.pmtiles"));
@@ -41,12 +52,23 @@ fn preview(root: &Path, variant: &str, sha: &str, consent: &str) -> (Output, Pat
     let out = root.join(format!("{variant}-preview.json"));
     let response = run(
         env!("CARGO_BIN_EXE_terrain_offline"),
-        &["experimental-local", s(&file), sha, s(&sel), "12", consent, s(&out)],
+        &[
+            "experimental-local",
+            s(&file),
+            sha,
+            s(&sel),
+            "12",
+            consent,
+            s(&out),
+        ],
     );
     (response, out)
 }
 fn failed(out: &Output, prefix: &str) {
-    assert!(!out.status.success(), "unexpected experimental mode success");
+    assert!(
+        !out.status.success(),
+        "unexpected experimental mode success"
+    );
     assert!(
         String::from_utf8_lossy(&out.stderr).starts_with(prefix),
         "want {prefix}: {}",
@@ -62,7 +84,11 @@ fn experimental_local_candidate_raster_is_real_but_never_a_verified_v1_grid() {
         let archive = root.join("source").join("complete.pmtiles");
         let actual_sha = sha(&fs::read(&archive).unwrap());
         let (out, path) = preview(&root, "complete", &actual_sha, ACK);
-        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
         let summary: Value = serde_json::from_slice(&out.stdout).unwrap();
         assert_eq!(summary["productionGenerationReady"], false);
         assert_eq!(summary["networkRequests"], 0);
@@ -92,7 +118,10 @@ fn experimental_local_candidate_raster_is_real_but_never_a_verified_v1_grid() {
         assert!(values.iter().all(|n| n.is_f64()));
         assert_ne!(values.first(), values.last());
         assert!(serde_json::from_value::<ElevationGridV1>(v.clone()).is_err());
-        assert_eq!(v["candidateHeightsSha256"], summary["candidateHeightsSha256"]);
+        assert_eq!(
+            v["candidateHeightsSha256"],
+            summary["candidateHeightsSha256"]
+        );
         let (repeat, _) = preview(&root, "complete", &actual_sha, ACK);
         failed(&repeat, "INVALID_SOURCE"); // cannot overwrite output
 
@@ -139,7 +168,8 @@ fn attribution_only_metadata_is_allowed_experimentally_but_not_registered_or_ver
         let mut bytes = fs::read(&original).unwrap();
         let offset = u64::from_le_bytes(bytes[24..32].try_into().unwrap()) as usize;
         let length = u64::from_le_bytes(bytes[32..40].try_into().unwrap()) as usize;
-        let replacement = br#"{"attribution":"Original synthetic only, unverified source metadata"}"#;
+        let replacement =
+            br#"{"attribution":"Original synthetic only, unverified source metadata"}"#;
         bytes.splice(offset..offset + length, replacement.iter().copied());
         bytes[32..40].copy_from_slice(&(replacement.len() as u64).to_le_bytes());
         let tile_offset = offset + replacement.len();
@@ -148,7 +178,11 @@ fn attribution_only_metadata_is_allowed_experimentally_but_not_registered_or_ver
         let test_path = root.join("source").join("attribution-only.pmtiles");
         fs::write(&test_path, &bytes).unwrap();
         let (result, dest) = preview(&root, "attribution-only", &sha(&bytes), ACK);
-        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
         let v: Value = serde_json::from_slice(&fs::read(&dest).unwrap()).unwrap();
         assert_eq!(v["sourceMetadataDeclaresTerrarium"], false);
         assert_eq!(
@@ -158,13 +192,22 @@ fn attribution_only_metadata_is_allowed_experimentally_but_not_registered_or_ver
         assert_eq!(v["verticalDatumStatus"], "unknown");
         assert_eq!(v["encodingAuthenticated"], false);
         assert_eq!(v["productionGenerationReady"], false);
-        assert_eq!(v["candidateTerrariumHeightsMeters"].as_array().unwrap().len(), 48);
+        assert_eq!(
+            v["candidateTerrariumHeightsMeters"]
+                .as_array()
+                .unwrap()
+                .len(),
+            48
+        );
         assert_eq!(v["networkRequests"], 0);
 
         // A conflicting explicit encoding must fail even with user opt-in.
         let mut bad_bytes = bytes;
         let bad_start = br#"{"attribution":"Original synthetic only, unverified source metadata"}"#;
-        let at = bad_bytes.windows(bad_start.len()).position(|w| w == bad_start).unwrap();
+        let at = bad_bytes
+            .windows(bad_start.len())
+            .position(|w| w == bad_start)
+            .unwrap();
         let bad = br#"{"encoding":"mapbox","attribution":"Synthetic"}"#;
         bad_bytes.splice(at..at + bad_start.len(), bad.iter().copied());
         bad_bytes[32..40].copy_from_slice(&(bad.len() as u64).to_le_bytes());
