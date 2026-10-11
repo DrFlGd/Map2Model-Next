@@ -78,8 +78,9 @@ def main():
         "cargoLockSha256": sha(lock.read_bytes()) if lock.exists() else None,
         "packages": manifest,
     }
-    pathlib.Path("rust-license-texts-manifest.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    # Byte-level LF output is identical on Windows and Ubuntu.
+    pathlib.Path("rust-license-texts-manifest.json").write_bytes(
+        (json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8")
     )
     sections = [
         "# Rust third-party dependency license/NOTICE texts",
@@ -106,8 +107,8 @@ def main():
             "```",
             "",
         ])
-    pathlib.Path("THIRD_PARTY_RUST_NOTICES.md").write_text(
-        "\n".join(sections), encoding="utf-8"
+    pathlib.Path("THIRD_PARTY_RUST_NOTICES.md").write_bytes(
+        "\n".join(sections).encode("utf-8")
     )
     print(json.dumps({
         "externalRustPackages": len(packages),
