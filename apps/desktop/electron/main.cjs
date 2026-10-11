@@ -2,6 +2,10 @@
 const {app,BrowserWindow,dialog,ipcMain,session}=require('electron');
 const path=require('node:path');
 const fs=require('node:fs/promises');
+const {createHash}=require('node:crypto');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
+const execFileAsync=promisify(execFile);
 
 const DEV=process.env.MAP2MODEL_DEV==='1'&&!app.isPackaged;
 const DEV_ORIGIN='http://127.0.0.1:5173';
@@ -16,11 +20,20 @@ function plainFailure(error){
   if(/^([A-Z_]+):/.test(text))return text.slice(0,240);
   return 'INTERNAL_ERROR: operation failed; inspect project and library permissions';
 }
+function nativeEnginePath(){
+  const binary=process.platform==='win32'?'map2model-engine.exe':'map2model-engine';
+  return app.isPackaged?path.join(process.resourcesPath,'bin',binary):path.resolve(__dirname,'../../../target/release',binary);
+}
+async function nativeEngineAvailable(){
+  try{await fs.access(nativeEnginePath());return true;}catch{return false;}
+}
 async function state(){
+  const syntheticAvailable=await nativeEngineAvailable();
   return {appVersion:app.getVersion(),offline:true,networkEnabled:false,
     libraryLabel:prefs.library?path.basename(prefs.library):null,
     libraryConfigured:Boolean(prefs.library),
-    engine:{status:'not-installed',canGenerate:false},
+    engine:{status:syntheticAvailable?'synthetic-ready':'not-installed',canGenerate:false,
+      syntheticExportAvailable:syntheticAvailable},
     basemap:{status:'not-installed'},terrain:{status:'not-installed'}};
 }
 async function prefsPath(){return path.join(app.getPath('userData'),USERDATA_PREFS);}
@@ -74,8 +87,44 @@ async function installHandlers(){
   handler('createProject',async p=>projects.createProject(await ensureLibrary(),p.title||'New terrain project'));
   handler('loadProject',async p=>projects.loadProject(await ensureLibrary(),p.projectId));
   handler('saveProject',async p=>projects.saveProject(await ensureLibrary(),p));
-  handler('engineHealth',async()=>({status:'not-installed',canGenerate:false,
-    reason:'Native terrain and 3MF engines are pending A2-01/A3-01 integration'}));
+  handler('engineHealth',async()=>({status:await nativeEngineAvailable()?'synthetic-ready':'not-installed',
+    canGenerate:false,syntheticExportAvailable:await nativeEngineAvailable(),
+    reason:'Real geographic sources are not authorized in this synthetic prototype'}));
+  handler('exportSynthetic',async()=>{
+    if(!await nativeEngineAvailable())throw Error('DATA_MISSING: packaged native engine is unavailable');
+    const answer=await dialog.showSaveDialog(window,{
+      title:'Export a synthetic demonstration terrain model',
+      defaultPath:'Map2Model-Synthetic-Terrain.3mf',
+      buttonLabel:'Export synthetic 3MF',
+      filters:[{name:'3D Manufacturing Format',extensions:['3mf']}],
+      properties:['showOverwriteConfirmation']
+    });
+    if(answer.canceled||!answer.filePath)return {canceled:true};
+    const target=path.resolve(answer.filePath);
+    if(path.extname(target).toLowerCase()!=='.3mf')throw Error('INVALID_REQUEST: select a .3mf destination');
+    // The native OS dialog is the ONLY source of export destinations. The
+    // renderer supplies no path, command, source metadata, or invocation args.
+    const binary=nativeEnginePath();
+    let stdout;
+    try{
+      ({stdout}=await execFileAsync(binary,['--export-synthetic',target],{
+        windowsHide:true,timeout:120000,maxBuffer:64*1024,encoding:'utf8'
+      }));
+    }catch(e){
+      throw Error('EXPORT_FAILED: native synthetic 3MF generation was unsuccessful');
+    }
+    let result;
+    try{result=JSON.parse(stdout);}catch{throw Error('EXPORT_FAILED: native engine output was invalid');}
+    if(result.status!=='ok'||result.result?.threeMfExported!==true||
+        result.result?.synthetic!==true)throw Error('EXPORT_FAILED: native engine did not verify the 3MF');
+    const bytes=await fs.readFile(target);
+    const sha=createHash('sha256').update(bytes).digest('hex');
+    if(sha!==result.result.packageSha256||bytes.length!==result.result.bytes)
+      throw Error('HASH_MISMATCH: exported file does not match verified native 3MF');
+    return {canceled:false,synthetic:true,fileName:path.basename(target),packageSha256:sha,
+      vertices:result.result.vertices,triangles:result.result.triangles,
+      aabbMm:result.result.aabbMm,bytes:bytes.length};
+  });
 }
 function approvedUrl(url){
   if(typeof url!=='string')return false;
