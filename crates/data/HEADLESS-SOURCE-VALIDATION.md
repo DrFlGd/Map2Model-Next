@@ -13,7 +13,7 @@ cargo run --offline -p map2model-data --bin terrain_offline -- inspect ./interla
 cargo run --offline -p map2model-data --bin terrain_offline -- inspect ./interlaken-private.pmtiles 13 4275 2891
 ```
 
-The second command selects one actual indexed tile and decompresses/decodes its **512×512 WebP**, returning the signed Terrarium north-west, center and south-east pixel heights, masked pixel count and encoded tile length. This inspection still requires the current bounded PMTiles v3 supported subset (≤128 MiB, ≤200,000 indexed tiles, WebP, directory modes none/gzip and encoding declared `terrarium`). An authentic extract outside the supported subset should be reported as incompatible, not silently substituted or interpreted.
+The second command selects one actual indexed tile and decompresses/decodes its **512×512 WebP**, returning the signed Terrarium north-west, center and south-east pixel heights, masked pixel count and encoded tile length. This format-only inspection requires the current bounded PMTiles v3 subset (≤128 MiB, ≤200,000 indexed tiles, WebP, directory modes none/gzip), **but permits real attribution-only metadata with no explicit `encoding` field**; it reports `metadataExplicitlyDeclaresTerrarium=false`, does not authorize source encoding, and retains all production-ready flags false. **Production registration/decode** still rejects absent explicit trusted Terrarium evidence. An authentic extract outside the supported subset should be reported as incompatible, not silently substituted or interpreted.
 
 Output reports SHA-256 over the *actual local archive bytes*, archive length, header bbox/zooms and counted tile entries, compression modes and observed pixel values. It **always** sets `productionGenerationReady=false`, `verticalDatumVerified=false`, `sourceLicenseVerified=false`, and `nativeResolutionVerified=false`. An observed elevation number is not proof of vertical reference or lawful derivative rights.
 
@@ -89,3 +89,12 @@ The script checks **exact private SHA** `75e03d8e0ec36d347ee4ed412ed816d67af5330
 **Honest execution status:** Both private files were independently hashed/parsed and WebP-decoded in the private container using Python/Pillow, but this container has **no Rust/Cargo toolchain** and no DNS access to install one; the actual private file has **not** been executed through compiled native Rust here or on Windows. Windows/Ubuntu public CI validates synthetic binary tests only. The operator-run private Windows test is the remaining evidence requirement.
 
 `crates/data/ENCODING-ATTESTATION-PROPOSAL.md` describes a signed/versioned, exact-source-SHA-bound encoding-only policy for lead review, **not** an implemented production relaxation. Real vertical datum, independently substantiated regional derivative rights/native DEM resolution and upstream release remain open gates; no production Generation Ready or G0 schema change.
+
+
+## Post-acceptance ownership and source provenance (2026-10-11)
+
+Lead has accepted the **owner-attested, physically disconnected Windows native format-only test** on the corrected real Interlaken archive (see PR #16 discussion). **Do not request another standalone geodata inspector run from the owner.** The next *application* test is the integrator's full Windows synthetic-grid→mesh→real-3MF preview, not a terrain-format CLI.
+
+Current independently researched source provenance and deliberately unapproved production gates: [`INTERLAKEN-PROVENANCE-REVIEW-2026-10-11.md`](INTERLAKEN-PROVENANCE-REVIEW-2026-10-11.md). A more concrete source-encoding-only signed attestation and key lifecycle **proposal** (not enabled in production): [`ENCODING-ATTESTATION-PROPOSAL.md`](ENCODING-ATTESTATION-PROPOSAL.md). Original Mapterhorn publisher code explicitly writes Terrarium/WebP tiles and attribution-only PMTiles JSON; this does not prove a specific source archive's release, license, mixed vertical datum or native DEM resolution.
+
+The `.github/workflows/a2-02-portable-windows.yml` build is retained as **manual maintainer workflow_dispatch only**; the accepted Windows format inspector is an evidence artifact, not an automatically rebuilt product deliverable. Agent 1 owns full desktop integration; no frozen V1 changes or private data uploads.
