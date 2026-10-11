@@ -2,7 +2,7 @@
 const {app,BrowserWindow,dialog,ipcMain,session}=require('electron');
 const path=require('node:path');
 const fs=require('node:fs/promises');
-const {createHash}=require('node:crypto');
+const {createHash,randomUUID}=require('node:crypto');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const execFileAsync=promisify(execFile);
@@ -14,6 +14,7 @@ let window=null;
 let prefs={library:null};
 let projects=null;
 let mainOrigin='file:';
+const pendingExperimental=new Map();
 
 function plainFailure(error){
   const text=String(error?.message||'INTERNAL_ERROR');
@@ -43,7 +44,8 @@ async function state(){
     libraryConfigured:Boolean(prefs.library),
     engine:{status:syntheticAvailable?'synthetic-ready':'not-installed',canGenerate:false,
       syntheticExportAvailable:syntheticAvailable,
-      originalPmtilesExportAvailable:pmtilesFixtureReady},
+      originalPmtilesExportAvailable:pmtilesFixtureReady,
+      experimentalLocalAvailable:syntheticAvailable},
     basemap:{status:'not-installed'},terrain:{status:'not-installed'}};
 }
 async function prefsPath(){return path.join(app.getPath('userData'),USERDATA_PREFS);}
