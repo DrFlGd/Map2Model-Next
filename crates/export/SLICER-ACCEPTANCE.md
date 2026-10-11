@@ -1,6 +1,6 @@
 # A3-02 Windows reference-slicer acceptance — evidence procedure
 
-**Status: NOT YET TESTED IN PRUSASLICER/BAMBU STUDIO.** Official Core model XSD, OPC, and independent Python/trimesh import tests are not substitutes for actual slicer use.
+**Status (2026-10-11):** Product owner confirmed the *actual v0.0.2 Windows desktop GUI-produced synthetic .3mf* **imports and slices without errors in BOTH PrusaSlicer and Bambu Studio**. This is **PASS for basic prototype dual-slicer smoke** (see Lead record on PR #15 comment #6110895112). Do not ask the owner to repeat the identical basic smoke. However, the separately published Agent 3 standalone Rust CI sample has **not** been independently correlated by on-machine SHA to that preview file; exact slicer versions/builds, XYZ tolerance measurements, auto-repair state, screenshots/layers, and physical network status of that particular GUI test remain undocumented. The more precise procedure below is optional *additional release conformance evidence*, not a prerequisite to accepting already completed basic preview smoke. Whole-package Consortium conformance and production-source authorization remain open.
 
 ## Signed Rust output to test
 
