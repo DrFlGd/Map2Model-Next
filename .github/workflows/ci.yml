@@ -56,3 +56,21 @@ jobs:
           cargo run --quiet -p map2model-data --bin terrain_synthetic_fixture -- "$SOURCE"
           cargo run --quiet --bin map2model-engine -- --export-original-pmtiles "$SOURCE" "$TARGET" > target/original-pmtiles-report.json
           python tests/verify_original_pmtiles_3mf.py "$TARGET" target/original-pmtiles-report.json
+      - name: Original synthetic PMTiles through separate unverified G2 candidate-to-3MF mode
+        shell: bash
+        run: |
+          SRC="$(node -p 'require("path").resolve("target/ci-original-pmtiles")')"
+          OUT="$(node -p 'require("path").resolve("target/ci-G2-experimental.3mf")')"
+          cargo run --quiet --bin map2model-engine -- --inspect-local-experimental "$SRC/complete.pmtiles" > target/ci-experimental-format.json
+          cargo run --quiet --bin map2model-engine -- --export-local-experimental "$SRC/complete.pmtiles" 489ec694f29c3d4c7bc5ed3f2dced736736e5c2a5d09cc1cef1ff3a0a8ede651 "$SRC/selection.json" 12 g2-original-test-001 PRIVATE-LOCAL-TERRAIN-2026-10-11 "$OUT" > target/ci-experimental-report.json
+          python tests/verify_experimental_3mf.py "$OUT" target/ci-experimental-report.json
+          if cargo run --quiet --bin map2model-engine -- --export-local-experimental "$SRC/complete.pmtiles" 0000000000000000000000000000000000000000000000000000000000000000 "$SRC/selection.json" 12 g2-badsha-job-001 PRIVATE-LOCAL-TERRAIN-2026-10-11 "$OUT.wrong.3mf"; then
+            echo "Bad experimental source hash unexpectedly succeeded"
+            exit 1
+          fi
+          if cargo run --quiet --bin map2model-engine -- --export-local-experimental "$SRC/complete.pmtiles" 489ec694f29c3d4c7bc5ed3f2dced736736e5c2a5d09cc1cef1ff3a0a8ede651 "$SRC/selection.json" 12 g2-wrong-policy-001 INVALID_POLICY "$OUT.wrong2.3mf"; then
+            echo "Unapproved experimental acknowledgement unexpectedly succeeded"
+            exit 1
+          fi
+          test ! -e "$OUT.wrong.3mf"
+          test ! -e "$OUT.wrong2.3mf"
