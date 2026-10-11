@@ -178,8 +178,19 @@ fn binary_offline_source_inspection_and_grid_to_frozen_mesh_consumer() {
 
         // Generation safety: explicit call from the user must never clobber an existing grid.
         assert!(!exec(&args).status.success());
+        let pinned_declaration_bytes = fs::read(&declaration).unwrap();
+        let mut unpinned: serde_json::Value =
+            serde_json::from_slice(&pinned_declaration_bytes).unwrap();
+        unpinned.as_object_mut().unwrap().remove("expectedArchiveSha256");
+        fs::write(&declaration, serde_json::to_vec(&unpinned).unwrap()).unwrap();
+        let unpinned_output = root.join("unpinned-grid.json");
+        assert!(!exec(&[
+            "decode", file_str(&archive), file_str(&registry),
+            file_str(&declaration), file_str(&selection), "0", file_str(&unpinned_output)
+        ]).status.success());
+        assert!(!unpinned_output.exists());
         let mut unknown =
-            serde_json::from_slice::<serde_json::Value>(&fs::read(&declaration).unwrap()).unwrap();
+            serde_json::from_slice::<serde_json::Value>(&pinned_declaration_bytes).unwrap();
         unknown["verticalDatumStatus"] = serde_json::json!("unknown");
         fs::write(&declaration, serde_json::to_vec(&unknown).unwrap()).unwrap();
         let reject = root.join("blocked-grid.json");
