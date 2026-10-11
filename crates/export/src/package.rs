@@ -718,7 +718,7 @@ pub fn export_experimental_core(
     }
     let prepared = PreparedExport {
         provenance_bytes: bytes_provenance,
-        provenance_sha256: provenance_sha,
+        provenance_sha256: provenance_sha.clone(),
         canonical_geometry_sha256: canonical,
         model_part: MODEL_PART,
         provenance_part: PROVENANCE_PART,
