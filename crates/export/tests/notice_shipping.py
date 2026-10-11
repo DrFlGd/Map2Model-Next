@@ -104,8 +104,8 @@ def stage(dest):
         "externalRustPackages": len(data["packages"]),
         "candidateChoices": choices,
     }
-    (folder / "THIRD_PARTY_NOTICES.manifest.json").write_text(
-        json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    (folder / "THIRD_PARTY_NOTICES.manifest.json").write_bytes(
+        (json.dumps(report, sort_keys=True, indent=2) + "\n").encode("utf-8")
     )
     verify(dest)
     print(json.dumps({"status": "staged-exact-bytes-not-release-approved",
