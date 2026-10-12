@@ -1,6 +1,7 @@
 //! Offline, bounded PMTiles v3 importer for Terrarium WebP archives.
 //! Data never leaves the local native engine. All source policy is caller-supplied;
 //! no zoom, header bbox, or metadata string is substituted for proven rights/datum.
+pub mod coverage;
 pub mod experimental;
 pub mod terrarium;
 
@@ -552,7 +553,6 @@ pub fn inspect_unverified_local_pmtiles(
         "tileType": "WebP",
         "encodingDeclaredInMetadata": metadata.get("encoding"),
         "nameDeclaredInMetadata": metadata.get("name"),
-        "sourceAttributionFromArchive": metadata.get("attribution").and_then(|v| v.as_str()).filter(|s| s.len()<=2048),
         "headerCoverageBbox": header.bbox,
         "headerMinZoom": header.min_zoom,
         "headerMaxZoom": header.max_zoom,
