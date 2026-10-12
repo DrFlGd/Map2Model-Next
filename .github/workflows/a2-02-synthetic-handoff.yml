@@ -33,6 +33,43 @@ jobs:
         run: |
           cargo run --quiet --locked -p map2model-data --bin terrain_synthetic_fixture -- "$PWD/agent2-original-synthetic"
           sha256sum agent2-original-synthetic/*.pmtiles
+      - name: Inspect original PMTiles declared boundary and indexed selection statuses for MapLibre handoff
+        run: |
+          cargo test --locked -p map2model-data --test local_coverage -- --nocapture
+          COMPLETE_SHA=$(python3 -c "import json; print(json.load(open('agent2-original-synthetic/complete.source.json'))['expectedArchiveSha256'])")
+          MISSING_SHA=$(python3 -c "import json; print(json.load(open('agent2-original-synthetic/missing-southeast.source.json'))['expectedArchiveSha256'])")
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- coverage \
+            "$PWD/agent2-original-synthetic/complete.pmtiles" \
+            | tee "$PWD/agent2-original-synthetic/coverage-boundary.json"
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- coverage \
+            "$PWD/agent2-original-synthetic/complete.pmtiles" "$COMPLETE_SHA" \
+            -84.024 39.7067 -84.023 39.7077 12 \
+            | tee "$PWD/agent2-original-synthetic/coverage-selection-inside.json"
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- coverage \
+            "$PWD/agent2-original-synthetic/missing-southeast.pmtiles" "$MISSING_SHA" \
+            -84.024 39.7067 -84.023 39.7077 12 \
+            | tee "$PWD/agent2-original-synthetic/coverage-selection-partial.json"
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('agent2-original-synthetic')
+          load = lambda n: json.loads((root / n).read_text())
+          boundary = load('coverage-boundary.json')
+          inside = load('coverage-selection-inside.json')
+          partial = load('coverage-selection-partial.json')
+          assert boundary['kind'] == 'LocalPMTilesCoveragePreviewV1'
+          assert boundary['coverageGeoJson']['geometry']['type'] == 'Polygon'
+          assert boundary['selection'] is None
+          assert inside['selection']['status'] == 'inside'
+          assert inside['selection']['requiredClosedBoundaryTiles'] == 4
+          assert partial['selection']['status'] == 'partial'
+          assert partial['selection']['missingRequiredTiles'] == 1
+          for result in (boundary, inside, partial):
+              assert result['sourceLicenseVerified'] is False
+              assert result['verticalDatumStatus'] == 'unknown'
+              assert result['productionGenerationReady'] is False
+              assert result['networkRequests'] == 0
+          print('A2-COVERAGE inside=4/4 partial=3/4 geojson=Polygon productionGenerationReady=false')
+          PY
       - name: Check test-only Ed25519/JCS exact-archive evidence negative cases
         env:
           A2_SYNTHETIC_ARCHIVE: agent2-original-synthetic/complete.pmtiles
