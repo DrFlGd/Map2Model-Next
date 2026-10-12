@@ -189,7 +189,9 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("--coverage-local") => {
-            use map2model_data::coverage::{inspect_local_pmtiles_coverage, CoverageSelectionQuery};
+            use map2model_data::coverage::{
+                inspect_local_pmtiles_coverage, CoverageSelectionQuery,
+            };
             let args = env::args().skip(2).collect::<Vec<_>>();
             let result = match args.as_slice() {
                 [file] => inspect_local_pmtiles_coverage(std::path::Path::new(file), None),
@@ -202,20 +204,21 @@ fn main() -> ExitCode {
                         zoom.parse::<u8>(),
                     );
                     match parsed {
-                        (Ok(w), Ok(s), Ok(e), Ok(n), Ok(z)) => {
-                            inspect_local_pmtiles_coverage(
-                                std::path::Path::new(file),
-                                Some(&CoverageSelectionQuery {
-                                    expected_source_sha256: sha.clone(),
-                                    bbox_wgs84: [w, s, e, n],
-                                    zoom: z,
-                                }),
-                            )
-                        }
+                        (Ok(w), Ok(s), Ok(e), Ok(n), Ok(z)) => inspect_local_pmtiles_coverage(
+                            std::path::Path::new(file),
+                            Some(&CoverageSelectionQuery {
+                                expected_source_sha256: sha.clone(),
+                                bbox_wgs84: [w, s, e, n],
+                                zoom: z,
+                            }),
+                        ),
                         _ => Err("INVALID_SELECTION: coverage bbox or zoom invalid".into()),
                     }
                 }
-                _ => Err("INVALID_REQUEST: coverage expects local file and optional SHA bbox zoom".into()),
+                _ => Err(
+                    "INVALID_REQUEST: coverage expects local file and optional SHA bbox zoom"
+                        .into(),
+                ),
             };
             let response = match result {
                 Ok(value) => json!({"status":"ok","result":value}),
@@ -223,8 +226,9 @@ fn main() -> ExitCode {
                     let code = reason.split(':').next().unwrap_or("");
                     let safe = match code {
                         "INVALID_SELECTION" | "INVALID_SOURCE" | "INVALID_REQUEST"
-                        | "DATA_MISSING" | "HASH_MISMATCH" | "OUT_OF_MEMORY"
-                        | "INVALID_CRS" => code,
+                        | "DATA_MISSING" | "HASH_MISMATCH" | "OUT_OF_MEMORY" | "INVALID_CRS" => {
+                            code
+                        }
                         _ => "INVALID_SOURCE",
                     };
                     error_response(None, safe, "Local PMTiles coverage inspection failed")
