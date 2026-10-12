@@ -1,8 +1,8 @@
 {
   "name": "map2model-next",
   "private": true,
-  "version": "0.0.6",
-  "description": "PMTiles coverage boundary overlay and indexed rectangle feedback — private local experimental Windows preview",
+  "version": "0.0.7",
+  "description": "v0.0.7 coverage-to-export selection identity hotfix · private local PMTiles",
   "engines": {
     "node": ">=22.16.0 <23"
   },
