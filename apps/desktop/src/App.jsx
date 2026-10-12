@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 import {selectionFromBbox} from '../shared/selection.mjs';
+import {coveragePolygon,coverageMessage,coverageAdmitsExperiment} from '../shared/coverage.mjs';
 
 const EMPTY_STYLE={version:8,sources:{},layers:[{id:'local-background',type:'background',paint:{'background-color':'#edf2ed'}}]};
 const emptyStatus={offline:true,networkEnabled:false,libraryConfigured:false,libraryLabel:null,
@@ -24,13 +25,13 @@ function selectedGeo(selection){
  const [west,south,east,north]=selection.bbox;
  return {type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Polygon',coordinates:[[[west,south],[east,south],[east,north],[west,north],[west,south]]]}}]};
 }
-function MapPane({selection,onSelection,onError,projectId}){
+function MapPane({selection,coverage,onSelection,onError,projectId}){
  const holder=useRef(null),mapRef=useRef(null),drawing=useRef(false),origin=useRef(null),drawEnabled=useRef(false);
- const selectionHandler=useRef(onSelection),errorHandler=useRef(onError),selectionRef=useRef(selection);
+ const selectionHandler=useRef(onSelection),errorHandler=useRef(onError),selectionRef=useRef(selection),coverageRef=useRef(coverage);
  const [draw,setDraw]=useState(false);
  const [focus,setFocus]=useState({lon:'-84.09',lat:'39.74'});
  const [center,setCenter]=useState('Coordinate reference • no offline basemap installed');
- selectionHandler.current=onSelection;errorHandler.current=onError;selectionRef.current=selection;
+ selectionHandler.current=onSelection;errorHandler.current=onError;selectionRef.current=selection;coverageRef.current=coverage;
  useEffect(()=>{drawEnabled.current=draw;mapRef.current?.getCanvas().style.setProperty('cursor',draw?'crosshair':'grab');},[draw]);
  useEffect(()=>{
   const map=new maplibregl.Map({container:holder.current,style:EMPTY_STYLE,
@@ -72,6 +73,12 @@ function MapPane({selection,onSelection,onError,projectId}){
   map.on('load',()=>{
    map.addSource('local-grid',{type:'geojson',data:graticule()});
    map.addLayer({id:'local-grid-lines',type:'line',source:'local-grid',paint:{'line-color':'#bacdc8','line-width':0.8}});
+   map.addSource('local-pmtiles-envelope',{type:'geojson',
+     data:coveragePolygon(coverageRef.current?.declaredCoverageBboxWgs84)});
+   map.addLayer({id:'local-pmtiles-envelope-fill',type:'fill',source:'local-pmtiles-envelope',
+     paint:{'fill-color':'#287dcc','fill-opacity':0.08}});
+   map.addLayer({id:'local-pmtiles-envelope-line',type:'line',source:'local-pmtiles-envelope',
+     paint:{'line-color':'#216caf','line-width':3,'line-dasharray':[3,2]}});
    map.addSource('terrain-selection',{type:'geojson',data:selectedGeo(selectionRef.current)});
    map.addLayer({id:'terrain-selection-fill',type:'fill',source:'terrain-selection',paint:{'fill-color':'#21a89d','fill-opacity':0.22}});
    map.addLayer({id:'terrain-selection-line',type:'line',source:'terrain-selection',paint:{'line-color':'#007e73','line-width':2.5}});
@@ -85,6 +92,17 @@ function MapPane({selection,onSelection,onError,projectId}){
   const map=mapRef.current,source=map?.getSource('terrain-selection');
   if(source)source.setData(selectedGeo(selection));
  },[selection]);
+ useEffect(()=>{
+  const map=mapRef.current;
+  if(!map)return;
+  const source=map.getSource('local-pmtiles-envelope');
+  if(source)source.setData(coveragePolygon(coverage?.declaredCoverageBboxWgs84));
+  const bbox=coverage?.declaredCoverageBboxWgs84;
+  if(coveragePolygon(bbox).features.length===1){
+   map.fitBounds([[bbox[0],bbox[1]],[bbox[2],bbox[3]]],
+     {padding:65,maxZoom:14,duration:0});
+  }
+ },[coverage?.sourceArchiveSha256]);
  useEffect(()=>{
   if(!selection||!mapRef.current)return;
   const map=mapRef.current,[west,south,east,north]=selection.bbox;
@@ -107,7 +125,9 @@ function MapPane({selection,onSelection,onError,projectId}){
     <button type="button" onClick={jump}>Go to coordinates</button>
    </div>
    <div className="map-host" ref={holder}/>
-   <div className="map-bottom"><span>{center}</span><span>No external map tiles are requested</span></div>
+   <div className="map-bottom"><span>{center}</span>
+     <span>{coverage?'Blue dashed = approximate PMTiles header · Green = selection':'No external map tiles are requested'}</span>
+   </div>
  </section>;
 }
 const guest={getState:async()=>emptyStatus};
