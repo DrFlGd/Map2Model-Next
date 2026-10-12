@@ -25,7 +25,7 @@ pub const EXPLICIT_LOCAL_ONLY_ACK: &str =
 const MAX_PREVIEW_SAMPLES: usize = 100_000;
 const MAX_CACHED_TILES: usize = 64;
 
-fn read_private_source(source: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_private_source(source: &Path) -> Result<Vec<u8>, String> {
     let info = fs::symlink_metadata(source)
         .map_err(|_| err("DATA_MISSING", "local experimental PMTiles absent"))?;
     if !info.is_file()
