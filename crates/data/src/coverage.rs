@@ -35,14 +35,16 @@ fn valid_drawn_bbox(b: [f64; 4]) -> bool {
 // lands exactly on a Web Mercator tile seam.
 fn required_xyz_range(b: [f64; 4], zoom: u8) -> Result<(u32, u32, u32, u32), String> {
     if zoom > MAX_ZOOM {
-        return Err(err("INVALID_SELECTION", "zoom outside supported PMTiles domain"));
+        return Err(err(
+            "INVALID_SELECTION",
+            "zoom outside supported PMTiles domain",
+        ));
     }
     let n = (1_u64 << zoom) as f64;
     let mx = |lon: f64| ((lon + 180.0) * n / 360.0).clamp(0.0, n);
     let my = |lat: f64| {
         let p = lat.to_radians();
-        ((1.0 - (p.tan() + 1.0 / p.cos()).ln() / std::f64::consts::PI) / 2.0 * n)
-            .clamp(0.0, n)
+        ((1.0 - (p.tan() + 1.0 / p.cos()).ln() / std::f64::consts::PI) / 2.0 * n).clamp(0.0, n)
     };
     let low = |f: f64| {
         let seam = f.round();
@@ -108,12 +110,15 @@ pub fn inspect_local_pmtiles_coverage(
     }
     let selection_info = if let Some(q) = request {
         let b = q.bbox_wgs84;
-        let intersects_declared =
-            b[0] < e[2] && b[2] > e[0] && b[1] < e[3] && b[3] > e[1];
-        let inside_declared =
-            b[0] >= e[0] && b[1] >= e[1] && b[2] <= e[2] && b[3] <= e[3];
+        let intersects_declared = b[0] < e[2] && b[2] > e[0] && b[1] < e[3] && b[3] > e[1];
+        let inside_declared = b[0] >= e[0] && b[1] >= e[1] && b[2] <= e[2] && b[3] <= e[3];
         let geographic_intersection = if intersects_declared {
-            json!([b[0].max(e[0]), b[1].max(e[1]), b[2].min(e[2]), b[3].min(e[3])])
+            json!([
+                b[0].max(e[0]),
+                b[1].max(e[1]),
+                b[2].min(e[2]),
+                b[3].min(e[3])
+            ])
         } else {
             Value::Null
         };
@@ -122,7 +127,10 @@ pub fn inspect_local_pmtiles_coverage(
             .checked_mul(u64::from(y1) - u64::from(y0) + 1)
             .ok_or("OUT_OF_MEMORY: coverage query tile count overflow")?;
         if required > MAX_COVERAGE_QUERY_TILES as u64 {
-            return Err(err("OUT_OF_MEMORY", "drawn rectangle exceeds indexed-tile query cap"));
+            return Err(err(
+                "OUT_OF_MEMORY",
+                "drawn rectangle exceeds indexed-tile query cap",
+            ));
         }
         let mut indexed = 0_u64;
         let zoom_in_archive = q.zoom >= h.min_zoom && q.zoom <= h.max_zoom;
