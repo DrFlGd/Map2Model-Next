@@ -1,9 +1,9 @@
-name: G2 PMTiles Coverage Overlay Windows Preview
+name: G2 Coverage Export-Selection Identity Hotfix Windows Preview
 
 on:
   push:
     branches:
-      - agent/lead-G2-coverage-overlay
+      - agent/lead-G2-coverage-selection-hotfix
     paths:
       - 'apps/desktop/**'
       - 'crates/engine-cli/**'
@@ -145,7 +145,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $exe='release/Map2Model-Next-0.0.6-x64.exe'
+          $exe='release/Map2Model-Next-0.0.7-x64.exe'
           if(-not(Test-Path -LiteralPath $exe -PathType Leaf)){throw 'Portable EXE not packaged'}
           $size=(Get-Item -LiteralPath $exe).Length
           if($size -lt 50000000){throw 'Unexpectedly small portable EXE; native engine may be missing'}
@@ -160,7 +160,7 @@ jobs:
             if(-not(Test-Path -LiteralPath $required -PathType Leaf)){throw "Missing unpacked distributable resource: $required"}
           }
           $sha=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Map2Model-Next-0.0.6-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.6-x64.exe.sha256'
+          "$sha  Map2Model-Next-0.0.7-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.7-x64.exe.sha256'
           @(
             "sourceCommit=$env:GITHUB_SHA"
             "workflowRun=$env:GITHUB_RUN_ID"
@@ -186,13 +186,13 @@ jobs:
       - name: Retain portable Windows prototype as Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Map2Model-Next-0.0.6-PMTiles-Coverage-Windows
+          name: Map2Model-Next-0.0.7-Selection-ID-Hotfix-Windows
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
           path: |
-            release/Map2Model-Next-0.0.6-x64.exe
-            release/Map2Model-Next-0.0.6-x64.exe.sha256
+            release/Map2Model-Next-0.0.7-x64.exe
+            release/Map2Model-Next-0.0.7-x64.exe.sha256
             release/BUILD-PROVENANCE.txt
             native-integration-report.json
             native-original-pmtiles-report.json
@@ -206,8 +206,9 @@ jobs:
         shell: pwsh
         run: |
           @'
-          Map2Model Next v0.0.6 — LOCAL PMTILES COVERAGE MAP PREVIEW (unsigned Windows x64)
+          Map2Model Next v0.0.7 — LOCAL PMTILES COVERAGE MAP PREVIEW (unsigned Windows x64)
 
+          CRITICAL 0.0.7 FIX: After selecting a local PMTiles source and drawing a rectangle with Inside indexed coverage, the renderer now sends the VALIDATED RECTANGLE selectionId rather than the source-first file picker receipt's null selectionId. This fixes INVALID_SELECTION: source rectangle lacks matching indexed tile coverage on experimental export. Node regression tests exercise the exact workflow and deny any stale, partial, or unchecked selection. Previously working blue boundary and coverage admission remain intact.
           NEW VISUAL COVERAGE: Select a local PMTiles file BEFORE drawing; the application fits the offline map to its header-advertised WGS84 bbox and draws a dashed blue outline. Draw a green rectangle: a separate native SHA-pinned zoom-specific PMTiles index check shows Inside, Partial, or Outside and missing indexed tiles. Partial/outside/unknown disables single-job experimental consent and export. Index-inside does NOT guarantee valid elevation pixels, provider licenses, vertical datum, native resolution or accuracy.
           PRIVATE EXPERIMENTAL: The user picks an already acquired local PMTiles archive and draws a source-covered rectangle. The source is inspected on-device. An unchecked, per-job acknowledgement of unverified licensing, vertical datum and native accuracy is required before experimental 3MF export. No source file is uploaded, downloaded automatically or bundled in the release.
 
@@ -235,6 +236,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag="v0.0.6-pmtiles-coverage-preview.$env:GITHUB_RUN_NUMBER"
-          gh release create $tag 'release/Map2Model-Next-0.0.6-x64.exe' 'release/Map2Model-Next-0.0.6-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.6 — PMTiles Coverage Overlay Preview" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
+          $tag="v0.0.7-pmtiles-selection-hotfix.$env:GITHUB_RUN_NUMBER"
+          gh release create $tag 'release/Map2Model-Next-0.0.7-x64.exe' 'release/Map2Model-Next-0.0.7-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.7 — Local PMTiles Selection-ID Export Hotfix" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
           if($LASTEXITCODE -ne 0){throw 'GitHub prerelease publish failed'}
