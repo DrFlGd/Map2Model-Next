@@ -127,20 +127,25 @@ export function App(){
   catch(error){setMessage(String(error.message||error));}
   finally{setBusy(false);}
  };
+ const clearExperimental=()=>{
+   if(experimentalSource&&api.discardExperimentalSource)
+     void api.discardExperimentalSource(experimentalSource.jobId).catch(()=>{});
+   setExperimentalSource(null);setExperimentalAccepted(false);
+ };
  const choose=()=>action(async()=>{setSystem(await api.chooseLibrary());await refresh();});
  const create=()=>action(async()=>{
   const record=await api.createProject(projectName||'New terrain project');
-  setProject(record);setSelection(record.selection);setProjectName(record.title);await refresh();
+  clearExperimental();setProject(record);setSelection(record.selection);setProjectName(record.title);await refresh();
  });
  const open=id=>action(async()=>{const record=await api.loadProject(id);
-   setProject(record);setSelection(record.selection);setProjectName(record.title);
+   clearExperimental();setProject(record);setSelection(record.selection);setProjectName(record.title);
  });
  const save=()=>action(async()=>{
   if(!project)throw Error('INVALID_PROJECT: create or open a project before saving');
   const record=await api.saveProject({projectId:project.projectId,title:projectName,selection});
   setProject(record);await refresh();setMessage('Saved locally. No network access was needed.');
  });
- const pick=next=>{setSelection(next);setMessage('Selection changed — save the project to keep it.');};
+ const pick=next=>{clearExperimental();setSelection(next);setMessage('Selection changed — save the project to keep it.');};
  const chooseExperimental=()=>action(async()=>{
    if(!selection||!api.selectExperimentalSource)throw Error('INVALID_SELECTION: draw a rectangle first');
    setExperimentalSource(null);setExperimentalAccepted(false);
