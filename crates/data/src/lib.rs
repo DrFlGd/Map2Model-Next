@@ -1,6 +1,7 @@
 //! Offline, bounded PMTiles v3 importer for Terrarium WebP archives.
 //! Data never leaves the local native engine. All source policy is caller-supplied;
 //! no zoom, header bbox, or metadata string is substituted for proven rights/datum.
+pub mod coverage;
 pub mod experimental;
 pub mod terrarium;
 
