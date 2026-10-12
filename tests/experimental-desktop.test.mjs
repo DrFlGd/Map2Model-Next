@@ -6,7 +6,7 @@ import os from 'node:os';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {selectionFromBbox} from '../apps/desktop/shared/selection.mjs';
-import {coveragePolygon,coverageMessage,coverageAdmitsExperiment} from '../apps/desktop/shared/coverage.mjs';
+import {coveragePolygon,coverageMessage,coverageAdmitsExperiment,approvedExperimentalExportPayload} from '../apps/desktop/shared/coverage.mjs';
 
 const {registerExperimentalHandlers}=createRequire(import.meta.url)('../apps/desktop/electron/experimental.cjs');
 const SOURCE='a'.repeat(64);
@@ -30,6 +30,31 @@ test('map coverage helpers label header-only boundaries and never promote unknow
  assert.equal(coverageAdmitsExperiment({...inside,status:'partial'},selection,source),false);
  assert.equal(coverageAdmitsExperiment({...inside,sourceArchiveSha256:'b'.repeat(64)},selection,source),false);
  assert.equal(coverageAdmitsExperiment({...inside,selectionId:'wrong'},selection,source),false);
+});
+
+test('G2 regression: source-first null selectionId must not leak into an inside-approved export payload',async()=>{
+ const selection=selectionFromBbox([-84.024,39.7067,-84.023,39.7077]);
+ const receipt={jobId:'source-first-123',selectionId:null,sourceArchiveSha256:SOURCE,zoom:12};
+ const inside={jobId:receipt.jobId,selectionId:selection.selectionId,
+   sourceArchiveSha256:SOURCE,zoom:12,status:'inside',exportEligible:true,
+   missingRequiredTiles:0};
+ assert.equal(receipt.selectionId,null,'choosing local source precedes drawing selection');
+ const payload=approvedExperimentalExportPayload(inside,selection,receipt,true);
+ assert.deepEqual(payload,{jobId:receipt.jobId,selectionId:selection.selectionId,accepted:true});
+ assert.notEqual(payload.selectionId,receipt.selectionId,
+   'BUG REGRESSION: never forward source-first null selectionId to native exporter');
+ assert(Object.isFrozen(payload));
+ assert.throws(()=>approvedExperimentalExportPayload(inside,selection,receipt,false),/consent/);
+ assert.throws(()=>approvedExperimentalExportPayload({...inside,status:'partial'},selection,receipt,true),/indexed coverage/);
+ assert.throws(()=>approvedExperimentalExportPayload({...inside,selectionId:'stale'},selection,receipt,true),/indexed coverage/);
+ const changedSelection=selectionFromBbox([-84.0239,39.7067,-84.023,39.7077]);
+ assert.throws(()=>approvedExperimentalExportPayload(inside,changedSelection,receipt,true),/indexed coverage/);
+ // Ensure the real shipped UI calls the same tested shared builder rather
+ // than accidentally forwarding the source-first receipt ID again.
+ const jsx=await fs.readFile(new URL('../apps/desktop/src/App.jsx',import.meta.url),'utf8');
+ assert.match(jsx,/const request=approvedExperimentalExportPayload\(/);
+ assert.match(jsx,/api\.exportExperimentalLocal\(\s*request\.jobId,request\.selectionId,request\.accepted\)/);
+ assert(!jsx.includes('api.exportExperimentalLocal(job.jobId,job.selectionId,true)'));
 });
 
 test('experiment requires source-first picker, current SHA-bound indexed coverage and one-use consent',async()=>{
@@ -125,8 +150,11 @@ test('experiment requires source-first picker, current SHA-bound indexed coverag
    await assert.rejects(exportFn({jobId:fresh.jobId,selectionId:selectionOther.selectionId,accepted:true}),/coverage/);
    assert.equal(saves,0);
    const authorized=await choose({});
-   await assess({jobId:authorized.jobId,selection});
-   const published=await exportFn({jobId:authorized.jobId,selectionId:selection.selectionId,accepted:true});
+   assert.equal(authorized.selectionId,null,'source-first receipt has no selection ID');
+   const insideAssessment=await assess({jobId:authorized.jobId,selection});
+   const authorizedPayload=approvedExperimentalExportPayload(
+     insideAssessment,selection,authorized,true);
+   const published=await exportFn(authorizedPayload);
    assert.equal(published.packageSha256,sha(bytes));
    assert.deepEqual(await fs.readFile(out),bytes);
    assert.equal(saves,1);
