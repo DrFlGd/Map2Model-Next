@@ -98,6 +98,7 @@ jobs:
           $json | Set-Content -Encoding utf8 native-experimental-report.json
           python tests/verify_experimental_3mf.py $out native-experimental-report.json
           if($LASTEXITCODE -ne 0){throw 'Independent experimental Core 3MF/provenance validation failed'}
+          $PSNativeCommandUseErrorActionPreference=$false
           $bad=Join-Path $env:RUNNER_TEMP 'g2-disallowed-job.3mf'
           & ./target/release/map2model-engine.exe --export-local-experimental $input $sha $selected 12 g2-unapproved-test-001 WRONG_POLICY $bad
           if($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $bad)){throw 'Unacknowledged source was exported'}
