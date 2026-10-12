@@ -35,3 +35,21 @@ export function coverageAdmitsExperiment(assessment,selection,source){
     assessment.jobId===source.jobId&&assessment.selectionId===selection.selectionId&&
     assessment.zoom===source.zoom&&assessment.missingRequiredTiles===0);
 }
+
+/**
+ * Construct the exact one-use native export receipt from the validated DRAWN
+ * rectangle. The source-first file-picker receipt intentionally has
+ * selectionId=null, and must never be sent as an export selection identity.
+ * The Rust/Electron main-process coverage and consent gate remains authoritative.
+ */
+export function approvedExperimentalExportPayload(assessment,selection,source,accepted){
+  if(accepted!==true)
+    throw Error('INVALID_REQUEST: explicit private experimental job consent required');
+  if(!coverageAdmitsExperiment(assessment,selection,source))
+    throw Error('INVALID_SELECTION: current source rectangle lacks matching indexed coverage');
+  return Object.freeze({
+    jobId:source.jobId,
+    selectionId:selection.selectionId,
+    accepted:true
+  });
+}
