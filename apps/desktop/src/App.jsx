@@ -135,7 +135,8 @@ export function App(){
  const api=window.map2model||guest;
  const [system,setSystem]=useState(emptyStatus),[projects,setProjects]=useState([]),[project,setProject]=useState(null),
    [selection,setSelection]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[projectName,setProjectName]=useState(''),
-    [experimentalSource,setExperimentalSource]=useState(null),[experimentalAccepted,setExperimentalAccepted]=useState(false);
+    [experimentalSource,setExperimentalSource]=useState(null),[experimentalAccepted,setExperimentalAccepted]=useState(false),
+    [coverageStatus,setCoverageStatus]=useState(null);
  async function refresh(){
   const state=await api.getState();setSystem(state);
   if(state.libraryConfigured&&api.listProjects)setProjects(await api.listProjects());
@@ -150,7 +151,7 @@ export function App(){
  const clearExperimental=()=>{
    if(experimentalSource&&api.discardExperimentalSource)
      void api.discardExperimentalSource(experimentalSource.jobId).catch(()=>{});
-   setExperimentalSource(null);setExperimentalAccepted(false);
+   setExperimentalSource(null);setExperimentalAccepted(false);setCoverageStatus(null);
  };
  const choose=()=>action(async()=>{setSystem(await api.chooseLibrary());await refresh();});
  const create=()=>action(async()=>{
@@ -165,17 +166,49 @@ export function App(){
   const record=await api.saveProject({projectId:project.projectId,title:projectName,selection});
   setProject(record);await refresh();setMessage('Saved locally. No network access was needed.');
  });
- const pick=next=>{clearExperimental();setSelection(next);setMessage('Selection changed — save the project to keep it.');};
+ const pick=next=>{
+   setSelection(next);setCoverageStatus(null);setExperimentalAccepted(false);
+   setMessage('Selection changed — checking local PMTiles coverage.');
+ };
+ useEffect(()=>{
+   if(!experimentalSource||!selection){
+     setCoverageStatus(null);setExperimentalAccepted(false);return;
+   }
+   if(!api.assessExperimentalCoverage){
+     setCoverageStatus({status:'unknown',message:'Local tile index checker is unavailable'});
+     return;
+   }
+   let live=true;
+   setCoverageStatus({status:'checking'});setExperimentalAccepted(false);
+   const timer=setTimeout(()=>{
+     api.assessExperimentalCoverage(experimentalSource.jobId,selection)
+       .then(result=>{
+         if(!live)return;
+         if(result.jobId!==experimentalSource.jobId||
+            result.selectionId!==selection.selectionId||
+            result.sourceArchiveSha256!==experimentalSource.sourceArchiveSha256)
+           throw Error('Coverage response is stale');
+         setCoverageStatus(result);
+       })
+       .catch(error=>{
+         if(live)setCoverageStatus({status:'unknown',message:String(error.message||error)});
+       });
+   },180);
+   return ()=>{live=false;clearTimeout(timer);};
+ },[experimentalSource?.jobId,selection?.selectionId]);
  const chooseExperimental=()=>action(async()=>{
-   if(!selection||!api.selectExperimentalSource)throw Error('INVALID_SELECTION: draw a rectangle first');
+   if(!api.selectExperimentalSource)throw Error('DATA_MISSING: local PMTiles picker unavailable');
    setExperimentalSource(null);setExperimentalAccepted(false);
-   const source=await api.selectExperimentalSource(selection);
+   const source=await api.selectExperimentalSource();
    if(source.canceled){setMessage('Local source selection cancelled.');return;}
    setExperimentalSource(source);
-   setMessage('Local PMTiles inspected. Source rights, datum and accuracy NOT VERIFIED.');
+   setCoverageStatus(null);
+   setMessage('Local source loaded. Its approximate blue boundary is on the map; draw or adjust the green rectangle within it.');
  });
  const exportExperimental=()=>action(async()=>{
-   if(!experimentalSource||!experimentalAccepted)throw Error('INVALID_REQUEST: per-job consent required');
+   if(!experimentalSource||!experimentalAccepted||
+      !coverageAdmitsExperiment(coverageStatus,selection,experimentalSource))
+     throw Error('INVALID_SELECTION: indexed coverage and explicit single-job consent required');
    const job=experimentalSource;
    setExperimentalSource(null);setExperimentalAccepted(false);
    const result=await api.exportExperimentalLocal(job.jobId,job.selectionId,true);
@@ -221,7 +254,7 @@ export function App(){
    </aside>
    <main className="workspace">
     <div className="workspace-title"><div><h1>{project?.title||'Geographic workspace'}</h1><p>Explore using coordinates or draw a local selection. Maximum 2 km per side in this milestone.</p></div><span className="chip">Earth · EPSG:4326</span></div>
-    <MapPane selection={selection} projectId={project?.projectId} onSelection={pick} onError={setMessage}/>
+    <MapPane selection={selection} coverage={experimentalSource} projectId={project?.projectId} onSelection={pick} onError={setMessage}/>
     {message?<div className="message" role="status">{message}</div>:null}
    </main>
    <aside className="inspector">
@@ -238,16 +271,23 @@ export function App(){
     <div className="readiness"><span>Mapterhorn terrain</span><strong>Missing</strong></div>
     <div className="readiness"><span>Synthetic terrain engine</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
     <div className="readiness"><span>Synthetic 3MF exporter</span><strong>{system.engine?.syntheticExportAvailable?'Ready':'Unavailable'}</strong></div>
-    <div className="notice">The two buttons below export original synthetic demonstrations, independent of your map rectangle. The separate PRIVATE EXPERIMENTAL mode above uses the geographic selection with a user-chosen local file. This mode never certifies source rights, terrain datum or height accuracy; no data is uploaded.</div>
-    <button onClick={chooseExperimental} disabled={busy||!selection||!system.engine?.experimentalLocalAvailable}>Choose private local PMTiles (experimental)</button>
+    <div className="notice">Choose the LOCAL PMTiles file FIRST to view its approximate blue coverage outline. Draw a green rectangle inside the outline; actual indexed tiles are checked separately. Partial/outside coverage disables experimental export. No source rights, datum or height accuracy are certified. Two fixed synthetic export demos remain unchanged.</div>
+    <button onClick={chooseExperimental} disabled={busy||!system.engine?.experimentalLocalAvailable}>Choose private local PMTiles (experimental)</button>
     {experimentalSource?<div className="detail-card" role="group" aria-label="Experimental source consent">
       <p><strong>EXPERIMENTAL — UNVERIFIED · PRIVATE LOCAL USE</strong></p>
-      <p>{experimentalSource.fileName} · {experimentalSource.sourceArchiveSha256}</p>
+      <p><strong>File:</strong> {experimentalSource.fileName}</p>
+      <p className="mono">Source SHA-256: {experimentalSource.sourceArchiveSha256}</p>
+      <p>Approximate header bounds: {experimentalSource.declaredCoverageBboxWgs84?.map(x=>x.toFixed(5)).join(', ')}</p>
+      <p>Source zoom {experimentalSource.zoom} (advertised {experimentalSource.headerMinZoom}–{experimentalSource.headerMaxZoom}); {experimentalSource.indexedTileCount} indexed tiles.</p>
+      <p><strong>Indexed selection: {coverageStatus?.status||'draw a rectangle'}</strong></p>
+      <p role="status">{coverageMessage(coverageStatus,true,!!selection)}</p>
+      <p>Blue dashed line is a HEADER envelope; even indexed-inside can contain invalid pixels.</p>
+      <button type="button" onClick={clearExperimental} disabled={busy}>Clear local source</button>
       <p>Vertical datum and licensing: UNKNOWN. Archive attribution: {experimentalSource.sourceAttributionFromArchive||'Not supplied'}</p>
-      <label><input type="checkbox" checked={experimentalAccepted} onChange={e=>setExperimentalAccepted(e.target.checked)}/>
+      <label><input type="checkbox" checked={experimentalAccepted} disabled={!coverageAdmitsExperiment(coverageStatus,selection,experimentalSource)} onChange={e=>setExperimentalAccepted(e.target.checked)}/>
         I acquired this source under applicable terms, accept unverified elevations for this job only, and will not redistribute without rights review.
       </label>
-      <button onClick={exportExperimental} disabled={busy||!experimentalAccepted}>Export PRIVATE experimental 3MF</button>
+      <button onClick={exportExperimental} disabled={busy||!experimentalAccepted||!coverageAdmitsExperiment(coverageStatus,selection,experimentalSource)}>Export PRIVATE experimental 3MF</button>
     </div>:null}
     <button onClick={exportOriginalPmtiles}
       disabled={busy||!system.engine?.originalPmtilesExportAvailable}
