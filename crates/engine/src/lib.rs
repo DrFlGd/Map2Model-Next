@@ -448,3 +448,6 @@ pub fn build_mesh(
         canonical_geometry_sha256: digest,
     })
 }
+
+/// Separate G2 unverified candidate geometry; not a trusted G0 source.
+pub mod experimental;
