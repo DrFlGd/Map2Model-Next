@@ -188,6 +188,56 @@ fn main() -> ExitCode {
             println!("{}", health(None));
             ExitCode::SUCCESS
         }
+        Some("--coverage-local") => {
+            use map2model_data::coverage::{inspect_local_pmtiles_coverage, CoverageSelectionQuery};
+            let args = env::args().skip(2).collect::<Vec<_>>();
+            let result = match args.as_slice() {
+                [file] => inspect_local_pmtiles_coverage(std::path::Path::new(file), None),
+                [file, sha, west, south, east, north, zoom] => {
+                    let parsed = (
+                        west.parse::<f64>(),
+                        south.parse::<f64>(),
+                        east.parse::<f64>(),
+                        north.parse::<f64>(),
+                        zoom.parse::<u8>(),
+                    );
+                    match parsed {
+                        (Ok(w), Ok(s), Ok(e), Ok(n), Ok(z)) => {
+                            inspect_local_pmtiles_coverage(
+                                std::path::Path::new(file),
+                                Some(&CoverageSelectionQuery {
+                                    expected_source_sha256: sha.clone(),
+                                    bbox_wgs84: [w, s, e, n],
+                                    zoom: z,
+                                }),
+                            )
+                        }
+                        _ => Err("INVALID_SELECTION: coverage bbox or zoom invalid".into()),
+                    }
+                }
+                _ => Err("INVALID_REQUEST: coverage expects local file and optional SHA bbox zoom".into()),
+            };
+            let response = match result {
+                Ok(value) => json!({"status":"ok","result":value}),
+                Err(reason) => {
+                    let code = reason.split(':').next().unwrap_or("");
+                    let safe = match code {
+                        "INVALID_SELECTION" | "INVALID_SOURCE" | "INVALID_REQUEST"
+                        | "DATA_MISSING" | "HASH_MISMATCH" | "OUT_OF_MEMORY"
+                        | "INVALID_CRS" => code,
+                        _ => "INVALID_SOURCE",
+                    };
+                    error_response(None, safe, "Local PMTiles coverage inspection failed")
+                }
+            };
+            let ok = response["status"] == "ok";
+            println!("{response}");
+            if ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
         Some("--inspect-local-experimental") => {
             let args = env::args().skip(2).collect::<Vec<_>>();
             let response = match args.as_slice() {
