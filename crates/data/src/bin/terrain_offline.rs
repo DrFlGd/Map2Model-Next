@@ -1,6 +1,7 @@
 //! Developer-only, network-free G1 geodata inspection and decode entrypoint.
 //! NOT an Electron/renderer IPC endpoint and not a source-rights approval path.
 use map2model_contracts::{validation, SelectionV1};
+use map2model_data::coverage::{inspect_local_pmtiles_coverage, CoverageSelectionQuery};
 use map2model_data::experimental::decode_experimental_local_pmtiles;
 use map2model_data::terrarium::decode_selection_grid;
 use map2model_data::{import_local_pmtiles, inspect_unverified_local_pmtiles, SourceDeclaration};
@@ -10,7 +11,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 fn usage() -> &'static str {
-    "Usage:\n  terrain_offline inspect <local.pmtiles> [zoom x y]\n  terrain_offline experimental-local <local.pmtiles> <expected-sha256> <selection.json> <zoom> <consent-token> <output-preview.json>\n  terrain_offline decode <local.pmtiles> <private-registry-dir> <source-declaration.json> <selection.json> <zoom> <output-grid.json>\n\ninspect: offline format/512px verification only; source datum/license unverified; never Generation Ready.\nexperimental-local: explicit local-only candidate raster (NOT a verified grid), requires expected SHA, SelectionV1 and exact acknowledgment; no datum or rights certification.\ndecode: requires explicit verified *caller declaration* and frozen SelectionV1; create-new grid output; NOT independent rights/datum approval."
+    "Usage:\n  terrain_offline inspect <local.pmtiles> [zoom x y]\n  terrain_offline coverage <local.pmtiles> [expected-sha256 west south east north zoom]\n  terrain_offline experimental-local <local.pmtiles> <expected-sha256> <selection.json> <zoom> <consent-token> <output-preview.json>\n  terrain_offline decode <local.pmtiles> <private-registry-dir> <source-declaration.json> <selection.json> <zoom> <output-grid.json>\n\ninspect: offline format/512px verification only; source datum/license unverified; never Generation Ready.\ncoverage: local header bbox GeoJSON and optional drawn-rectangle inside/partial/outside based on actual tile IDs, NOT alpha/no-data or height readiness.\nexperimental-local: explicit local-only candidate raster (NOT a verified grid), requires expected SHA, SelectionV1 and exact acknowledgment; no datum or rights certification.\ndecode: requires explicit verified *caller declaration* and frozen SelectionV1; create-new grid output; NOT independent rights/datum approval."
 }
 fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
     let info = fs::symlink_metadata(path).map_err(|_| "DATA_MISSING: JSON input not found")?;
@@ -43,6 +44,26 @@ fn execute(args: &[String]) -> Result<serde_json::Value, String> {
         [action, file, z, x, y] if action == "inspect" => {
             let tile = Some((parse(z, "zoom")?, parse(x, "x")?, parse(y, "y")?));
             inspect_unverified_local_pmtiles(Path::new(file), tile)
+        }
+        [action, file] if action == "coverage" => {
+            inspect_local_pmtiles_coverage(Path::new(file), None)
+        }
+        [action, file, sha, west, south, east, north, zoom] if action == "coverage" => {
+            let coordinate = |v: &str| {
+                v.parse::<f64>()
+                    .map_err(|_| "INVALID_SELECTION: coverage bbox must be numeric".to_string())
+            };
+            let request = CoverageSelectionQuery {
+                expected_source_sha256: sha.to_owned(),
+                bbox_wgs84: [
+                    coordinate(west)?,
+                    coordinate(south)?,
+                    coordinate(east)?,
+                    coordinate(north)?,
+                ],
+                zoom: parse(zoom, "zoom")?,
+            };
+            inspect_local_pmtiles_coverage(Path::new(file), Some(&request))
         }
         [action, file, registry, source_json, selection_json, zoom, output]
             if action == "decode" =>
