@@ -36,8 +36,15 @@ fn subprocess(bin: &str, args: &[&str]) -> Output {
 fn setup() -> PathBuf {
     let dir = temp_root();
     fs::create_dir(&dir).unwrap();
-    let gen = subprocess(env!("CARGO_BIN_EXE_terrain_synthetic_fixture"), &[p(&dir.join("generated"))]);
-    assert!(gen.status.success(), "{}", String::from_utf8_lossy(&gen.stderr));
+    let gen = subprocess(
+        env!("CARGO_BIN_EXE_terrain_synthetic_fixture"),
+        &[p(&dir.join("generated"))],
+    );
+    assert!(
+        gen.status.success(),
+        "{}",
+        String::from_utf8_lossy(&gen.stderr)
+    );
     dir
 }
 fn cover(file: &Path, sha: Option<&str>, bbox: Option<[&str; 4]>, zoom: Option<&str>) -> Output {
@@ -50,7 +57,11 @@ fn cover(file: &Path, sha: Option<&str>, bbox: Option<[&str; 4]>, zoom: Option<&
     subprocess(env!("CARGO_BIN_EXE_terrain_offline"), &args)
 }
 fn successful(out: Output) -> Value {
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     serde_json::from_slice(&out.stdout).unwrap()
 }
 fn rejected(out: Output, error: &str) {
@@ -71,12 +82,15 @@ fn local_file_picker_yields_maplibre_geojson_bbox_and_unverified_source_identity
     let v = successful(cover(&file, None, None, None));
     assert_eq!(v["kind"], "LocalPMTilesCoveragePreviewV1");
     assert_eq!(v["sourceArchiveSha256"], source_sha);
-    assert_eq!(v["declaredCoverageBboxWgs84"], serde_json::json!([
-        -84.11132, 39.63954, -83.93555, 39.77476
-    ]));
+    assert_eq!(
+        v["declaredCoverageBboxWgs84"],
+        serde_json::json!([-84.11132, 39.63954, -83.93555, 39.77476])
+    );
     assert_eq!(v["coverageGeoJson"]["type"], "Feature");
     assert_eq!(v["coverageGeoJson"]["geometry"]["type"], "Polygon");
-    let points = v["coverageGeoJson"]["geometry"]["coordinates"][0].as_array().unwrap();
+    let points = v["coverageGeoJson"]["geometry"]["coordinates"][0]
+        .as_array()
+        .unwrap();
     assert_eq!(points.len(), 5);
     assert_eq!(points.first(), points.last());
     assert_eq!(v["coverageGeoJson"]["properties"]["unverified"], true);
@@ -123,20 +137,33 @@ fn index_and_header_distinguish_inside_partial_outside_for_dragged_rectangle() {
     assert_eq!(outside["selection"]["status"], "outside");
     assert_eq!(outside["selection"]["intersectsDeclaredBbox"], false);
     assert_eq!(outside["selection"]["indexedRequiredTiles"], 0);
-    assert_eq!(outside["selection"]["intersectionWithDeclaredBboxWgs84"], Value::Null);
+    assert_eq!(
+        outside["selection"]["intersectionWithDeclaredBboxWgs84"],
+        Value::Null
+    );
 
     // A header bbox alone would falsely classify this as inside. The real
     // indexed tile set has an absent southeast source tile.
     let missing = dir.join("missing-southeast.pmtiles");
     let missing_sha = sha256(&fs::read(&missing).unwrap());
-    let partly = successful(cover(&missing, Some(&missing_sha), Some(SEAM_BBOX), Some("12")));
+    let partly = successful(cover(
+        &missing,
+        Some(&missing_sha),
+        Some(SEAM_BBOX),
+        Some("12"),
+    ));
     assert_eq!(partly["selection"]["status"], "partial");
     assert_eq!(partly["selection"]["insideDeclaredBbox"], true);
     assert_eq!(partly["selection"]["requiredClosedBoundaryTiles"], 4);
     assert_eq!(partly["selection"]["indexedRequiredTiles"], 3);
 
     // A bbox strictly inside an absent tile is OUTSIDE indexed coverage.
-    let absent_only = successful(cover(&missing, Some(&missing_sha), Some(SE_TILE), Some("12")));
+    let absent_only = successful(cover(
+        &missing,
+        Some(&missing_sha),
+        Some(SE_TILE),
+        Some("12"),
+    ));
     assert_eq!(absent_only["selection"]["status"], "outside");
     assert_eq!(absent_only["selection"]["intersectsDeclaredBbox"], true);
     assert_eq!(absent_only["selection"]["indexedRequiredTiles"], 0);
@@ -149,8 +176,10 @@ fn index_only_inside_is_not_promise_of_pixel_or_export_readiness() {
     let digest = sha256(&fs::read(&file).unwrap());
     let v = successful(cover(&file, Some(&digest), Some(SEAM_BBOX), Some("12")));
     assert_eq!(v["selection"]["status"], "inside");
-    assert_eq!(v["selection"]["classificationScope"],
-        "declared-header-envelope-and-real-index-only; alpha/nodata/height samples NOT verified");
+    assert_eq!(
+        v["selection"]["classificationScope"],
+        "declared-header-envelope-and-real-index-only; alpha/nodata/height samples NOT verified"
+    );
     assert_eq!(v["productionGenerationReady"], false);
     assert_eq!(v["sourceLicenseVerified"], false);
     fs::remove_dir_all(root).unwrap();
@@ -160,12 +189,37 @@ fn coverage_query_rejects_mutated_source_nonfinite_invalid_bbox_oversize_and_bad
     let root = setup();
     let file = root.join("generated/complete.pmtiles");
     let digest = sha256(&fs::read(&file).unwrap());
-    rejected(cover(&file, Some(&"0".repeat(64)), Some(SEAM_BBOX), Some("12")), "HASH_MISMATCH");
-    rejected(cover(&file, Some(&digest), Some(["NaN","39","-84","40"]), Some("12")), "INVALID_SELECTION");
-    rejected(cover(&file, Some(&digest), Some(["-83","39.70","-84","39.71"]), Some("12")), "INVALID_SELECTION");
-    rejected(cover(&file, Some(&digest), Some(SEAM_BBOX), Some("23")), "INVALID_SELECTION");
+    rejected(
+        cover(&file, Some(&"0".repeat(64)), Some(SEAM_BBOX), Some("12")),
+        "HASH_MISMATCH",
+    );
+    rejected(
+        cover(
+            &file,
+            Some(&digest),
+            Some(["NaN", "39", "-84", "40"]),
+            Some("12"),
+        ),
+        "INVALID_SELECTION",
+    );
+    rejected(
+        cover(
+            &file,
+            Some(&digest),
+            Some(["-83", "39.70", "-84", "39.71"]),
+            Some("12"),
+        ),
+        "INVALID_SELECTION",
+    );
+    rejected(
+        cover(&file, Some(&digest), Some(SEAM_BBOX), Some("23")),
+        "INVALID_SELECTION",
+    );
     // Valid WGS84 but enormous z22 scan is not silently labelled partial.
-    rejected(cover(&file, Some(&digest), Some(SEAM_BBOX), Some("22")), "OUT_OF_MEMORY");
+    rejected(
+        cover(&file, Some(&digest), Some(SEAM_BBOX), Some("22")),
+        "OUT_OF_MEMORY",
+    );
 
     let wrong_zoom = successful(cover(&file, Some(&digest), Some(SEAM_BBOX), Some("13")));
     assert_eq!(wrong_zoom["selection"]["zoomAvailable"], false);
