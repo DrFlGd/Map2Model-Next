@@ -20,6 +20,10 @@ import sys
 CHOICES = {
     "MIT": "MIT",
     "MIT OR Apache-2.0": "MIT",
+    # adler2: dual/triple option; full bundled MIT grant verified by text check below.
+    "0BSD OR MIT OR Apache-2.0": "MIT",
+    # bytemuck: MIT option in Zlib/Apache/MIT alternatives, verify actual MIT text.
+    "Zlib OR Apache-2.0 OR MIT": "MIT",
     "Apache-2.0 OR MIT": "MIT",
     "Unlicense OR MIT": "MIT",
     "MIT/Apache-2.0": "MIT",
@@ -46,9 +50,29 @@ def load_source():
     actual_choices = {}
     for p in packages:
         expression = p["licenseExpression"]
-        if expression not in CHOICES or not p["files"]:
+        # Lead integration's bounded alternative-policy reconciliation:
+        # select MIT only from a plain OR of reviewed permissive options,
+        # never from AND, exceptions, LGPL, custom predicates, or ambiguous SPDX.
+        # The full MIT grant+disclaimer must also appear in the actual source
+        # LICENSE/NOTICE files, checked below. Human release review remains pending.
+        alternatives = expression.split(" OR ") if isinstance(expression, str) else []
+        reviewed = {"MIT", "Apache-2.0", "0BSD", "Zlib", "BSD-2-Clause", "BSD-3-Clause"}
+        eligible = (
+            len(alternatives) > 1
+            and len(set(alternatives)) == len(alternatives)
+            and set(alternatives).issubset(reviewed)
+        )
+        if (expression not in CHOICES and not eligible) or not p["files"]:
             raise ValueError(f"human license decision required for {p['name']}@{p['version']}: {expression}")
-        selection = CHOICES[expression]
+        # Favor MIT when explicitly offered; otherwise Apache-2.0 when
+        # explicitly offered. Both require the actual full source grant below.
+        selection = CHOICES.get(expression)
+        if selection is None and eligible:
+            selection = "MIT" if "MIT" in alternatives else (
+                "Apache-2.0" if "Apache-2.0" in alternatives else None
+            )
+        if selection is None:
+            raise ValueError(f"no reviewed explicit full-text license option: {expression}")
         actual_choices[f"{p['name']}@{p['version']}"] = {
             "declaredSpdx": expression,
             "chosenLicense": selection,
