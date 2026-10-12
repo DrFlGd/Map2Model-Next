@@ -360,3 +360,66 @@ fn varied_grid_export_blocks_unverified_rights_datum_missing_clipped_nodes_or_mi
     assert_eq!(std::fs::read_dir(&parent).unwrap().count(), 0);
     std::fs::remove_dir_all(parent).unwrap();
 }
+
+#[test]
+fn decoded_grid_export_refuses_partly_outside_and_disjoint_clips_even_if_map_was_green() {
+    // Simulate a stale UI coverage badge: the exporter must always revalidate
+    // the actual immutable decoded grid and requested metric clip, not a
+    // renderer-provided `inside` boolean or an archive header bbox.
+    // This tests the existing VERIFIED grid path only, NOT PMTiles index proof.
+    let case = Case {
+        width: 8,
+        height: 6,
+        exaggeration: 1.0,
+        interior_clip: false,
+    };
+    let (grid, request, source) = signed_synthetic_grid(&case);
+    let good_mesh = build_mesh(&grid, &request).unwrap();
+    export_3mf(&good_mesh, &grid, &request, &source).unwrap();
+
+    let step = grid.dx_meters;
+    for (label, offset) in [
+        ("partial-west", -step),
+        ("partial-east", step),
+        ("fully-outside-east", step * case.width as f64),
+    ] {
+        let mut shifted = request.clone();
+        shifted.clip_rect_meters[0] += offset;
+        shifted.clip_rect_meters[2] += offset;
+        assert_eq!(
+            build_mesh(&grid, &shifted).unwrap_err().code,
+            "INVALID_DIMENSIONS",
+            "{label}: decoded grid extent is authoritative"
+        );
+        assert_eq!(
+            export_3mf(&good_mesh, &grid, &shifted, &source)
+                .unwrap_err()
+                .job_reason_code(),
+            "INVALID_DIMENSIONS",
+            "{label}: no 3MF must be generated with stale coverage UI"
+        );
+    }
+
+    // A rectangular header bbox can look complete while the selected actual
+    // raster has a missing sample. Full tile-index coverage can likewise
+    // contain an alpha no-data value; failure must survive all UI previews.
+    let mut incomplete = grid.clone();
+    let sample_index = 2 * grid.width + 2;
+    incomplete.samples_meters.as_mut().unwrap()[sample_index] = None;
+    incomplete.valid_mask.as_mut().unwrap()[sample_index] = false;
+    incomplete.grid_sha256 = grid_digest(&incomplete).unwrap();
+    let mut mismatched_request = request.clone();
+    mismatched_request.grid_sha256 = incomplete.grid_sha256.clone();
+    assert_eq!(
+        build_mesh(&incomplete, &mismatched_request)
+            .unwrap_err()
+            .code,
+        "DATA_MISSING"
+    );
+    assert_eq!(
+        export_3mf(&good_mesh, &incomplete, &mismatched_request, &source)
+            .unwrap_err()
+            .job_reason_code(),
+        "DATA_MISSING"
+    );
+}
