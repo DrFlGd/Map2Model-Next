@@ -1,14 +1,15 @@
-name: A1-06 Original Synthetic PMTiles Windows Preview Hotfix
+name: G2 Private Experimental Terrain Windows Preview
 
 on:
   push:
     branches:
-      - agent/lead-A1-06-integrated-pmtiles-preview
+      - agent/lead-G2-experimental-integration
     paths:
       - 'apps/desktop/**'
       - 'crates/engine-cli/**'
       - 'crates/export/**'
       - 'crates/data/**'
+      - 'crates/engine/**'
       - 'tests/**'
       - 'Cargo.toml'
       - 'package.json'
@@ -78,6 +79,31 @@ jobs:
           $json | Set-Content -Encoding utf8 native-original-pmtiles-report.json
           python tests/verify_original_pmtiles_3mf.py $export native-original-pmtiles-report.json
           if($LASTEXITCODE -ne 0){throw 'Independent original PMTiles 3MF validation failed'}
+      - name: Native G2 candidate decode to separate experimental 3MF and independent source-warning validation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path (Resolve-Path 'target/release').Path 'synthetic-terrain-input'
+          $input=Join-Path $root 'complete.pmtiles'
+          $selected=Join-Path $root 'selection.json'
+          $out=Join-Path $env:RUNNER_TEMP 'original-source-G2-experimental.3mf'
+          $sha='489ec694f29c3d4c7bc5ed3f2dced736736e5c2a5d09cc1cef1ff3a0a8ede651'
+          $policy='PRIVATE-LOCAL-TERRAIN-2026-10-11'
+          $inspect=& ./target/release/map2model-engine.exe --inspect-local-experimental $input
+          if($LASTEXITCODE -ne 0){throw 'Native experimental source format inspection failed'}
+          $source=($inspect|Out-String|ConvertFrom-Json)
+          if($source.status -ne 'ok' -or $source.result.archiveSha256 -ne $sha -or $source.result.productionGenerationReady -ne $false){throw 'Experimental inspector asserted ungrounded source readiness'}
+          $json=& ./target/release/map2model-engine.exe --export-local-experimental $input $sha $selected 12 g2-experimental-windows-smoke-001 $policy $out
+          if($LASTEXITCODE -ne 0){throw 'Actual separate experimental local export failed'}
+          $json | Set-Content -Encoding utf8 native-experimental-report.json
+          python tests/verify_experimental_3mf.py $out native-experimental-report.json
+          if($LASTEXITCODE -ne 0){throw 'Independent experimental Core 3MF/provenance validation failed'}
+          $bad=Join-Path $env:RUNNER_TEMP 'g2-disallowed-job.3mf'
+          & ./target/release/map2model-engine.exe --export-local-experimental $input $sha $selected 12 g2-unapproved-test-001 WRONG_POLICY $bad
+          if($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $bad)){throw 'Unacknowledged source was exported'}
+          $badHash=Join-Path $env:RUNNER_TEMP 'g2-bad-hash.3mf'
+          & ./target/release/map2model-engine.exe --export-local-experimental $input ('0'*64) $selected 12 g2-tampered-test-001 $policy $badHash
+          if($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $badHash)){throw 'Tampered source was exported'}
       - name: Install Electron and pinned UI tools
         run: npm install --no-audit --no-fund
       - name: Test production Electron state availability regression and offline shell
@@ -90,10 +116,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $exe='release/Map2Model-Next-0.0.4-x64.exe'
+          $exe='release/Map2Model-Next-0.0.5-x64.exe'
           if(-not(Test-Path -LiteralPath $exe -PathType Leaf)){throw 'Portable EXE not packaged'}
           $size=(Get-Item -LiteralPath $exe).Length
           if($size -lt 50000000){throw 'Unexpectedly small portable EXE; native engine may be missing'}
+          if(-not(Test-Path -LiteralPath 'release/win-unpacked/resources/app.asar' -PathType Leaf)){throw 'Electron application ASAR missing; private source picker not bundled'}
           foreach($required in @(
             'release/win-unpacked/resources/bin/map2model-engine.exe',
             'release/win-unpacked/resources/synthetic-terrain/complete.pmtiles',
@@ -104,7 +131,7 @@ jobs:
             if(-not(Test-Path -LiteralPath $required -PathType Leaf)){throw "Missing unpacked distributable resource: $required"}
           }
           $sha=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Map2Model-Next-0.0.4-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.4-x64.exe.sha256'
+          "$sha  Map2Model-Next-0.0.5-x64.exe" | Set-Content -Encoding ascii 'release/Map2Model-Next-0.0.5-x64.exe.sha256'
           @(
             "sourceCommit=$env:GITHUB_SHA"
             "workflowRun=$env:GITHUB_RUN_ID"
@@ -114,6 +141,11 @@ jobs:
             "sourceType=G0 synthetic fixture plus ORIGINAL CC0 512px PMTiles; NO real source"
             "noRealMapterhorn=TRUE"
             "native3mfVerified=TRUE"
+            "privateExperimental3mfIndependentValidation=TRUE"
+            "untrustedSourceBundled=FALSE"
+            "sourceDatumVerified=FALSE"
+            "licenseVerified=FALSE"
+            "privatePerJobConsentRequired=TRUE"
             "actualSyntheticPmtilesDecodeMesh3mf=TRUE"
             "RustNoticesBundled=TRUE; legal review pending"
             "physicalWindowsGUIAndSlicerSmoke=PENDING"
@@ -122,39 +154,43 @@ jobs:
       - name: Retain portable Windows prototype as Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Map2Model-Next-0.0.4-Original-PMTiles-Windows
+          name: Map2Model-Next-0.0.5-Private-Experimental-Windows
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
           path: |
-            release/Map2Model-Next-0.0.4-x64.exe
-            release/Map2Model-Next-0.0.4-x64.exe.sha256
+            release/Map2Model-Next-0.0.5-x64.exe
+            release/Map2Model-Next-0.0.5-x64.exe.sha256
             release/BUILD-PROVENANCE.txt
             native-integration-report.json
             native-original-pmtiles-report.json
+            native-experimental-report.json
             Cargo.lock
       - name: Write clearly scoped prerelease notes
         shell: pwsh
         run: |
           @'
-          Map2Model Next v0.0.4 — Startup Fix Original Synthetic PMTiles Preview (unsigned Windows x64)\n\n          P0 HOTFIX: Corrected a local variable shadowing error in Electron m2m:state that caused startup INTERNAL_ERROR and disabled the original PMTiles export button.\n          Electron state readiness is now regression-tested with bundled native engine and synthetic fixture both available/missing.
+          Map2Model Next v0.0.5 — PRIVATE LOCAL EXPERIMENTAL TERRAIN PREVIEW (unsigned Windows x64)
+
+          PRIVATE EXPERIMENTAL: The user picks an already acquired local PMTiles archive and draws a source-covered rectangle. The source is inspected on-device. An unchecked, per-job acknowledgement of unverified licensing, vertical datum and native accuracy is required before experimental 3MF export. No source file is uploaded, downloaded automatically or bundled in the release.
 
           WHAT WORKS:
           - Offline Electron workspace: geographic rectangle selection and local project save/reopen.
           - Export SYNTHETIC G0 demo 3MF or ORIGINAL 512px CC0 WebP PMTiles->real ElevationGridV1->mesh->3MF through a trusted Windows Save dialog.
-          - Two separate original synthetic paths; actual PMTiles tile decoding, source/grid hashes and genuine OPC/provenance checks.
+          - Two previously owner-tested synthetic exports remain available; additionally choose a local PMTiles archive and export a selected covered rectangle as a separately labeled PRIVATE EXPERIMENTAL 3MF.
+          - Actual indexed PMTiles/WebP candidate decoding to a manifold printable model. Experimental 3MF embeds source SHA, candidate height SHA, consent identity and UNKNOWN datum/source rights warnings. Verified source/export contracts are NOT bypassed.
           - Native ZIP/OPC/geometry readback plus independent Python reader and SHA checks in CI.
           - The output reference should measure 180 x 80 x 204 mm (24 vertices, 44 triangles).
 
           NOT YET IMPLEMENTED / ACCEPTED:
-          - Geographic-selection-driven generation or verified real Mapterhorn import. Original synthetic sample is FIXED; drawn map area is not generated.
-          - Real terrain datum/rights/native accuracy/source acceptance.
-          - Physical Windows GUI acceptance and two-slicer acceptance.
-          - Full G0 JobState progress/cancellation or production release signing.
+          - Verified Mapterhorn/geodetic terrain generation, licensed/public sharing of real data or its models, and production-source clearance. Drawn selection is used ONLY with the separately acknowledged experimental local candidate path.
+          - No real source license, upstream contributors, datum, native resolution or accuracy is independently verified. Users must comply with any restrictions, even for private use. This disclaimer does NOT grant source rights.
+          - Physical Windows testing and both-slicer acceptance of THIS NEW local-file experimental workflow remain pending; v0.0.4 synthetic output was separately user-tested.
+          - Full frozen G0 JobState progress/cancellation lifecycle, in-app detailed progress, signing, public file sharing and production approval remain pending.
 
           This is an UNSIGNED development prototype and a GitHub prerelease, NOT a production version.
           Download the Windows EXE and check the adjacent SHA256 file before executing.
-          'Both GUI demos use original mathematical synthetic data, not the user-drawn selection.'
+          Published Windows software contains only ORIGINAL synthetic fixture terrain, never user-provided real terrain bytes. Private experimental models are generated and saved on the user's own computer; do not share/redistribute without checking terms.
           '@ | Set-Content -Encoding utf8 release/RELEASE-NOTES.txt
       - name: Publish GitHub prerelease only after all checks pass
         shell: pwsh
@@ -162,6 +198,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag="v0.0.4-original-pmtiles-hotfix.$env:GITHUB_RUN_NUMBER"
-          gh release create $tag 'release/Map2Model-Next-0.0.4-x64.exe' 'release/Map2Model-Next-0.0.4-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.4 — Original Synthetic PMTiles Startup Hotfix" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
+          $tag="v0.0.5-private-experimental.$env:GITHUB_RUN_NUMBER"
+          gh release create $tag 'release/Map2Model-Next-0.0.5-x64.exe' 'release/Map2Model-Next-0.0.5-x64.exe.sha256' 'release/BUILD-PROVENANCE.txt' --target $env:GITHUB_SHA --title "Map2Model Next 0.0.5 — Private Local Experimental Terrain Preview" --notes-file 'release/RELEASE-NOTES.txt' --prerelease --verify-tag=false
           if($LASTEXITCODE -ne 0){throw 'GitHub prerelease publish failed'}
