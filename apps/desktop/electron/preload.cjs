@@ -1,6 +1,6 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
-const allowed=new Set(['state','chooseLibrary','listProjects','createProject','loadProject','saveProject','engineHealth','exportSynthetic','exportOriginalSyntheticPmtiles','selectExperimentalSource','exportExperimentalLocal','discardExperimentalSource','cancelExperimentalJob']);
+const allowed=new Set(['state','chooseLibrary','listProjects','createProject','loadProject','saveProject','engineHealth','exportSynthetic','exportOriginalSyntheticPmtiles','selectExperimentalSource','assessExperimentalCoverage','exportExperimentalLocal','discardExperimentalSource','cancelExperimentalJob']);
 const invoke=(operation,payload={})=>{
   if(!allowed.has(operation))return Promise.reject(new Error('UNSUPPORTED_OPERATION'));
   return ipcRenderer.invoke('m2m:'+operation,payload);
@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('map2model',{
   engineHealth:()=>invoke('engineHealth'),
   exportSynthetic:()=>invoke('exportSynthetic'),
   exportOriginalSyntheticPmtiles:()=>invoke('exportOriginalSyntheticPmtiles'),
-  selectExperimentalSource:selection=>invoke('selectExperimentalSource',{selection}),
+  selectExperimentalSource:()=>invoke('selectExperimentalSource'),
+  assessExperimentalCoverage:(jobId,selection)=>invoke('assessExperimentalCoverage',{jobId,selection}),
   exportExperimentalLocal:(jobId,selectionId,accepted)=>invoke('exportExperimentalLocal',{jobId,selectionId,accepted}),
   discardExperimentalSource:jobId=>invoke('discardExperimentalSource',{jobId})
 });
