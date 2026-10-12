@@ -56,6 +56,21 @@ jobs:
           cargo run --quiet -p map2model-data --bin terrain_synthetic_fixture -- "$SOURCE"
           cargo run --quiet --bin map2model-engine -- --export-original-pmtiles "$SOURCE" "$TARGET" > target/original-pmtiles-report.json
           python tests/verify_original_pmtiles_3mf.py "$TARGET" target/original-pmtiles-report.json
+      - name: Validate selected local source coverage with the integrated native engine
+        shell: bash
+        run: |
+          SRC="$(node -p 'require("path").resolve("target/ci-original-pmtiles")')"
+          ARCHIVE="$SRC/complete.pmtiles"
+          SOURCE_SHA=489ec694f29c3d4c7bc5ed3f2dced736736e5c2a5d09cc1cef1ff3a0a8ede651
+          cargo run --quiet --bin map2model-engine -- --coverage-local "$ARCHIVE" > target/ci-coverage-declared.json
+          cargo run --quiet --bin map2model-engine -- --coverage-local "$ARCHIVE" "$SOURCE_SHA" -84.024 39.7067 -84.023 39.7077 12 > target/ci-coverage-inside.json
+          cargo run --quiet --bin map2model-engine -- --coverage-local "$ARCHIVE" "$SOURCE_SHA" -83.936 39.7068 -83.9352 39.7072 12 > target/ci-coverage-partial.json
+          cargo run --quiet --bin map2model-engine -- --coverage-local "$ARCHIVE" "$SOURCE_SHA" -83.934 39.7068 -83.9335 39.7072 12 > target/ci-coverage-outside.json
+          python tests/verify_local_coverage.py target/ci-coverage-declared.json target/ci-coverage-inside.json target/ci-coverage-partial.json target/ci-coverage-outside.json
+          if cargo run --quiet --bin map2model-engine -- --coverage-local "$ARCHIVE" 0000000000000000000000000000000000000000000000000000000000000000 -84.024 39.7067 -84.023 39.7077 12; then
+            echo "FAIL: changed source archive was accepted by coverage inspector"
+            exit 1
+          fi
       - name: Original synthetic PMTiles through separate unverified G2 candidate-to-3MF mode
         shell: bash
         run: |
