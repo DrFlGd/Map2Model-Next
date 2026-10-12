@@ -1,0 +1,51 @@
+name: Agent 2 portable Windows PMTiles format inspector (draft)
+
+# The owner has finished this standalone format-inspection milestone.
+# No additional inspector builds on every provenance/doc commit;
+# any future explicit maintainer rebuild requires manual dispatch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-inspector:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.90.0'
+      - name: Test frozen contracts, source importer, decoder and mesh
+        run: cargo test --workspace
+      - name: Compile native release-mode Windows inspector
+        run: cargo build --release -p map2model-data --bin terrain_offline
+      - name: Assemble inspect-only distributable and executable digest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path packaged-inspector | Out-Null
+          Copy-Item -LiteralPath target/release/terrain_offline.exe -Destination packaged-inspector/
+          Copy-Item -LiteralPath crates/data/scripts/Inspect-Interlaken.ps1 -Destination packaged-inspector/
+          Copy-Item -LiteralPath crates/data/scripts/Inspect-Interlaken.cmd -Destination packaged-inspector/
+          Copy-Item -LiteralPath crates/data/scripts/PORTABLE-INSPECTOR-README.txt -Destination packaged-inspector/README.txt
+          $digest = (Get-FileHash -LiteralPath packaged-inspector/terrain_offline.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "terrain_offline.exe SHA256=$digest",
+            "gitCommit=$env:GITHUB_SHA",
+            "rustToolchain=1.90.0",
+            "platform=windows-latest x86_64-pc-windows-msvc",
+            "scope=FORMAT-ONLY; NOT source licensing/datum approval; NOT full Electron GUI",
+            "no third-party Mapterhorn archive is included"
+          ) | Set-Content -Encoding UTF8 packaged-inspector/BUILD-PROVENANCE.txt
+          Write-Output "Portable native Windows inspector SHA256: $digest"
+      - name: Publish inspector-only artifact (NO terrain data)
+        uses: actions/upload-artifact@v4
+        with:
+          name: map2model-agent2-windows-inspector
+          path: packaged-inspector/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

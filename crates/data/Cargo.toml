@@ -7,6 +7,11 @@ publish = false
 [dependencies]
 map2model-contracts = { path = "../contracts" }
 sha2 = "=0.10.9"
-serde_json = "=1.0.145"
+serde_json = { version = "=1.0.145", features = ["float_roundtrip"] }
 flate2 = "=1.1.4"
 getrandom = "=0.3.3"
+image = { version = "=0.25.8", default-features = false, features = ["webp"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+
+[dev-dependencies]
+map2model-mesh = { path = "../engine" }

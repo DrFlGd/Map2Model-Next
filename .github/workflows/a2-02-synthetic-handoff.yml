@@ -1,0 +1,149 @@
+name: Agent 2 original synthetic PMTiles integration handoff
+
+on:
+  push:
+    branches: [agent/2-A2-02-terrarium-grid]
+    paths:
+      - 'crates/data/**'
+      - '.github/workflows/a2-02-synthetic-handoff.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  original-synthetic-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.90.0'
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Require formatter and strict lint for original test source
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+      - name: Exercise synthetic PMTiles -> selection -> decoded grid -> actual mesh
+        run: cargo test --locked -p map2model-data --test synthetic_pmtiles_integration -- --nocapture
+      - name: Produce fully original synthetic PMTiles fixtures, source SHA and declarations
+        run: |
+          cargo run --quiet --locked -p map2model-data --bin terrain_synthetic_fixture -- "$PWD/agent2-original-synthetic"
+          sha256sum agent2-original-synthetic/*.pmtiles
+      - name: Inspect original PMTiles declared boundary and indexed selection statuses for MapLibre handoff
+        run: |
+          cargo test --locked -p map2model-data --test local_coverage -- --nocapture
+          COMPLETE_SHA=$(python3 -c "import json; print(json.load(open('agent2-original-synthetic/complete.source.json'))['expectedArchiveSha256'])")
+          MISSING_SHA=$(python3 -c "import json; print(json.load(open('agent2-original-synthetic/missing-southeast.source.json'))['expectedArchiveSha256'])")
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- coverage \
+            "$PWD/agent2-original-synthetic/complete.pmtiles" \
+            | tee "$PWD/agent2-original-synthetic/coverage-boundary.json"
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- coverage \
+            "$PWD/agent2-original-synthetic/complete.pmtiles" "$COMPLETE_SHA" \
+            -84.024 39.7067 -84.023 39.7077 12 \
+            | tee "$PWD/agent2-original-synthetic/coverage-selection-inside.json"
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- coverage \
+            "$PWD/agent2-original-synthetic/missing-southeast.pmtiles" "$MISSING_SHA" \
+            -84.024 39.7067 -84.023 39.7077 12 \
+            | tee "$PWD/agent2-original-synthetic/coverage-selection-partial.json"
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('agent2-original-synthetic')
+          load = lambda n: json.loads((root / n).read_text())
+          boundary = load('coverage-boundary.json')
+          inside = load('coverage-selection-inside.json')
+          partial = load('coverage-selection-partial.json')
+          assert boundary['kind'] == 'LocalPMTilesCoveragePreviewV1'
+          assert boundary['coverageGeoJson']['geometry']['type'] == 'Polygon'
+          assert boundary['selection'] is None
+          assert inside['selection']['status'] == 'inside'
+          assert inside['selection']['requiredClosedBoundaryTiles'] == 4
+          assert partial['selection']['status'] == 'partial'
+          assert partial['selection']['missingRequiredTiles'] == 1
+          for result in (boundary, inside, partial):
+              assert result['sourceLicenseVerified'] is False
+              assert result['verticalDatumStatus'] == 'unknown'
+              assert result['productionGenerationReady'] is False
+              assert result['networkRequests'] == 0
+          print('A2-COVERAGE inside=4/4 partial=3/4 geojson=Polygon productionGenerationReady=false')
+          PY
+      - name: Check test-only Ed25519/JCS exact-archive evidence negative cases
+        env:
+          A2_SYNTHETIC_ARCHIVE: agent2-original-synthetic/complete.pmtiles
+        run: node --test crates/data/tests/encoding_attestation.test.mjs
+      - name: "Native CLI: decode the complete synthetic source, assert no real-source readiness"
+        run: |
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- decode             "$PWD/agent2-original-synthetic/complete.pmtiles"             "$RUNNER_TEMP/map2model-artificial-only-registry"             "$PWD/agent2-original-synthetic/complete.source.json"             "$PWD/agent2-original-synthetic/selection.json"             12             "$PWD/agent2-original-synthetic/decoded-grid.json"             | tee "$PWD/agent2-original-synthetic/decode-summary.json"
+      - name: Exercise explicitly opted-in local experimental preview (all source claims unverified)
+        run: |
+          cargo test --locked -p map2model-data --test experimental_local -- --nocapture
+          SOURCE_SHA=$(python3 -c "import json; print(json.load(open('agent2-original-synthetic/complete.source.json'))['expectedArchiveSha256'])")
+          cargo run --quiet --locked -p map2model-data --bin terrain_offline -- experimental-local \
+            "$PWD/agent2-original-synthetic/complete.pmtiles" \
+            "$SOURCE_SHA" \
+            "$PWD/agent2-original-synthetic/selection.json" \
+            12 \
+            I-ACCEPT-UNVERIFIED-TERRAIN-FOR-PRIVATE-LOCAL-EXPERIMENTATION \
+            "$PWD/agent2-original-synthetic/experimental-preview.json" \
+            | tee "$PWD/agent2-original-synthetic/experimental-preview-summary.json"
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('agent2-original-synthetic')
+          preview = json.loads((root / 'experimental-preview.json').read_text())
+          assert preview['kind'] == 'ExperimentalLocalTerrainPreviewV1'
+          assert preview['width'] == 6 and preview['height'] == 8
+          assert len(preview['candidateTerrariumHeightsMeters']) == 48
+          assert preview['sourceLicenseVerified'] is False
+          assert preview['encodingAuthenticated'] is False
+          assert preview['nativeResolutionVerified'] is False
+          assert preview['redistributionApproved'] is False
+          assert preview['productionGenerationReady'] is False
+          assert preview['verticalDatumStatus'] == 'unknown'
+          assert preview['networkRequests'] == 0
+          print('AGENT2_EXPERIMENTAL_PREVIEW sourceSha256=' + preview['sourceArchiveSha256'])
+          print('AGENT2_EXPERIMENTAL_PREVIEW candidateHeightsSha256=' + preview['candidateHeightsSha256'])
+          print('AGENT2_EXPERIMENTAL_PREVIEW unverifiedDatum=true productionGenerationReady=false')
+          PY
+      - name: Verify complete source + frozen output summary and collect SHA report
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, hashlib
+          base = pathlib.Path('agent2-original-synthetic')
+          fixture = json.loads((base / 'fixture-report.json').read_text())
+          decode = json.loads((base / 'decode-summary.json').read_text())
+          grid = json.loads((base / 'decoded-grid.json').read_text())
+          data = (base / 'complete.pmtiles').read_bytes()
+          source_sha = hashlib.sha256(data).hexdigest()
+          assert fixture['kind'] == 'Map2ModelOriginalSyntheticTerrainFixtureV1'
+          assert fixture['variants'][0]['archiveSha256'] == source_sha
+          assert decode['sourceArchiveSha256'] == source_sha
+          assert grid['gridSha256'] == decode['gridSha256']
+          assert grid['selectionId'] == fixture['selectionId']
+          assert grid['verticalDatumId'] == 'SYNTHETIC-RELATIVE-METERS'
+          assert not decode['productionGenerationReady']
+          assert not decode['licenseAndDatumIndependentlyVerified']
+          assert decode['networkRequests'] == 0
+          print('AGENT2_SYNTHETIC_HANDOFF sourceSha256=' + source_sha)
+          print('AGENT2_SYNTHETIC_HANDOFF manifestSha256=' + decode['manifestSha256'])
+          print('AGENT2_SYNTHETIC_HANDOFF gridSha256=' + decode['gridSha256'])
+          print('AGENT2_SYNTHETIC_HANDOFF selectionId=' + fixture['selectionId'])
+          print('AGENT2_SYNTHETIC_HANDOFF grid=' + str(grid['width']) + 'x' + str(grid['height']))
+          print('AGENT2_SYNTHETIC_HANDOFF realSourceGenerationReady=false')
+          (base / 'SHA-RESULTS.txt').write_text(
+            'sourceSha256=' + source_sha + '\n' +
+            'manifestSha256=' + decode['manifestSha256'] + '\n' +
+            'gridSha256=' + decode['gridSha256'] + '\n' +
+            'selectionId=' + fixture['selectionId'] + '\n' +
+            'networkRequests=0\nproductionRealSourceReady=false\n'
+          )
+          PY
+      - name: Publish original-generated synthetic fixtures ONLY for lead A1-04 integration
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent2-original-512px-pmtiles-to-grid
+          path: agent2-original-synthetic/
+          if-no-files-found: error
+          retention-days: 14

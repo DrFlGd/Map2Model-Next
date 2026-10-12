@@ -1,6 +1,10 @@
 //! Offline, bounded PMTiles v3 importer for Terrarium WebP archives.
 //! Data never leaves the local native engine. All source policy is caller-supplied;
 //! no zoom, header bbox, or metadata string is substituted for proven rights/datum.
+pub mod coverage;
+pub mod experimental;
+pub mod terrarium;
+
 use flate2::read::GzDecoder;
 use map2model_contracts::{canonical, validation, SelectionV1, TerrainSourceManifestV1};
 use sha2::{Digest, Sha256};
@@ -245,7 +249,7 @@ fn parse_directory(bytes: &[u8]) -> Result<Vec<DirEntry>, String> {
     }
     Ok(entries)
 }
-fn tile_id(z: u8, x: u32, y: u32) -> Result<u64, String> {
+pub(crate) fn tile_id(z: u8, x: u32, y: u32) -> Result<u64, String> {
     if z > MAX_ZOOM || x >= (1_u32 << z) || y >= (1_u32 << z) {
         return Err(err("INVALID_SELECTION", "invalid Z/X/Y coordinate"));
     }
@@ -302,7 +306,10 @@ struct InspectedArchive {
     header: Header,
     tiles: BTreeMap<u64, TileRecord>,
 }
-fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
+fn inspect_archive(
+    bytes: &[u8],
+    require_terrarium_metadata: bool,
+) -> Result<InspectedArchive, String> {
     let h = parse_header(bytes)?;
     let meta = decompress(
         section(bytes, h.metadata.0, h.metadata.1, "metadata")?,
@@ -311,10 +318,18 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
     )?;
     let object: serde_json::Value = serde_json::from_slice(&meta)
         .map_err(|_| err("INVALID_SOURCE", "PMTiles metadata must be JSON"))?;
-    if !object.is_object() || object.get("encoding").and_then(|v| v.as_str()) != Some("terrarium") {
+    // Real regional Mapterhorn extracts may have attribution-only JSON.
+    // Unverified format inspection can report and decode WebP dimensions/bytes
+    // without *claiming* the source is Terrarium or establishing its datum.
+    // Registration stays fail-closed without explicit archive encoding metadata.
+    let encoding = object.get("encoding").and_then(|v| v.as_str());
+    if !object.is_object()
+        || encoding.is_some_and(|value| value != "terrarium")
+        || (require_terrarium_metadata && encoding != Some("terrarium"))
+    {
         return Err(err(
             "INVALID_SOURCE",
-            "expected explicitly declared Terrarium metadata",
+            "registered source requires explicit Terrarium metadata; format-only inspection cannot attest source encoding",
         ));
     }
     let root = decompress(
@@ -416,9 +431,155 @@ fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
         tiles: records,
     })
 }
+
+/// Import and registry re-open require explicitly declared Terrarium metadata.
+/// Mapterhorn's attribution-only extracts can still undergo UNVERIFIED format
+/// inspection without altering their original bytes or claiming source rights.
+fn inspect(bytes: &[u8]) -> Result<InspectedArchive, String> {
+    inspect_archive(bytes, true)
+}
+
+/// Untrusted source-format inspection ONLY. This deliberately does not create a
+/// TerrainSourceManifestV1, register tokens, or assert datum/license readiness.
+/// Intended for a developer-acquired local PMTiles extract; no network I/O.
+pub fn inspect_unverified_local_pmtiles(
+    source_path: &Path,
+    requested_tile: Option<(u8, u32, u32)>,
+) -> Result<serde_json::Value, String> {
+    let original = fs::symlink_metadata(source_path)
+        .map_err(|_| err("DATA_MISSING", "unverified PMTiles sample unavailable"))?;
+    if !original.is_file()
+        || original.file_type().is_symlink()
+        || original.len() < HEADER_BYTES as u64
+        || original.len() > MAX_ARCHIVE_BYTES
+    {
+        return Err(err(
+            "INVALID_SOURCE",
+            "local sample must be a bounded ordinary PMTiles file",
+        ));
+    }
+    let mut handle = OpenOptions::new()
+        .read(true)
+        .open(source_path)
+        .map_err(|_| err("DATA_MISSING", "cannot open sample"))?;
+    let metadata = handle
+        .metadata()
+        .map_err(|_| err("INVALID_SOURCE", "sample metadata unavailable"))?;
+    if !metadata.is_file() || metadata.len() != original.len() {
+        return Err(err("INVALID_SOURCE", "sample changed before inspection"));
+    }
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut handle)
+        .take(MAX_ARCHIVE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| err("INVALID_SOURCE", "bounded sample read failed"))?;
+    if bytes.len() as u64 != original.len() || bytes.len() as u64 > MAX_ARCHIVE_BYTES {
+        return Err(err("INVALID_SOURCE", "sample changed during inspection"));
+    }
+    let updated = fs::symlink_metadata(source_path)
+        .map_err(|_| err("DATA_MISSING", "sample removed during inspection"))?;
+    if !updated.is_file() || updated.file_type().is_symlink() || updated.len() != original.len() {
+        return Err(err(
+            "INVALID_SOURCE",
+            "sample path changed during inspection",
+        ));
+    }
+    let inspected = inspect_archive(&bytes, false)?;
+    let header = &inspected.header;
+    let raw_metadata = decompress(
+        section(&bytes, header.metadata.0, header.metadata.1, "metadata")?,
+        header.internal_compression,
+        MAX_METADATA_BYTES,
+    )?;
+    let metadata: serde_json::Value = serde_json::from_slice(&raw_metadata)
+        .map_err(|_| err("INVALID_SOURCE", "unverified archive metadata invalid"))?;
+    let observed_zoom =
+        |id: u64| (header.min_zoom..=header.max_zoom).find(|z| tile_id_in_zoom(id, *z, *z));
+    let actual_min_zoom = inspected
+        .tiles
+        .keys()
+        .next()
+        .and_then(|id| observed_zoom(*id));
+    let actual_max_zoom = inspected
+        .tiles
+        .keys()
+        .next_back()
+        .and_then(|id| observed_zoom(*id));
+    // This is derived from authenticated tile-directory IDs, not the header or
+    // metadata envelope. It is format-only evidence, not verified sample rights.
+    let mut indexed_tiles_by_zoom = BTreeMap::<String, usize>::new();
+    for id in inspected.tiles.keys() {
+        let z = observed_zoom(*id).ok_or_else(|| {
+            err(
+                "INVALID_SOURCE",
+                "indexed tile ID falls outside declared source zoom",
+            )
+        })?;
+        *indexed_tiles_by_zoom.entry(z.to_string()).or_default() += 1;
+    }
+    let sample = if let Some((z, x, y)) = requested_tile {
+        let id = tile_id(z, x, y)?;
+        let record = inspected.tiles.get(&id).ok_or_else(|| {
+            err(
+                "DATA_MISSING",
+                "requested tile absent from actual PMTiles index",
+            )
+        })?;
+        let encoded = section(
+            &bytes,
+            record.offset,
+            u64::from(record.length),
+            "sample tile",
+        )?;
+        let webp = decompress(encoded, header.tile_compression, MAX_TILE_BYTES)?;
+        let tile = terrarium::decode_terrarium_webp(&webp)?;
+        serde_json::json!({
+            "z": z, "x": x, "y": y, "verifiedDirectoryEntry": true,
+            "webpWidth": 512, "webpHeight": 512,
+            "compressedTileBytes": record.length,
+            "decodedWebpBytes": webp.len(),
+            "elevationNorthWestMeters": tile.height(0,0),
+            "elevationCenterMeters": tile.height(256,256),
+            "elevationSouthEastMeters": tile.height(511,511),
+            "maskedPixelCount": tile.number_of_missing_pixels()
+        })
+    } else {
+        serde_json::Value::Null
+    };
+    Ok(serde_json::json!({
+        "inspectionKind": "UnverifiedLocalPMTilesFormatV1",
+        "archiveSha256": digest(&bytes),
+        "archiveBytes": bytes.len(),
+        "tileType": "WebP",
+        "encodingDeclaredInMetadata": metadata.get("encoding"),
+        "nameDeclaredInMetadata": metadata.get("name"),
+        "headerCoverageBbox": header.bbox,
+        "headerMinZoom": header.min_zoom,
+        "headerMaxZoom": header.max_zoom,
+        "actualIndexedMinZoom": actual_min_zoom,
+        "actualIndexedMaxZoom": actual_max_zoom,
+        "headerZoomRangeConsistent": actual_min_zoom == Some(header.min_zoom)
+            && actual_max_zoom == Some(header.max_zoom),
+        "metadataExplicitlyDeclaresTerrarium": metadata.get("encoding").and_then(|v| v.as_str()) == Some("terrarium"),
+        "indexedTileCount": inspected.tiles.len(),
+        "indexedTilesByZoom": indexed_tiles_by_zoom,
+        "internalCompression": if header.internal_compression == 2 {"gzip"} else {"none"},
+        "tileCompression": if header.tile_compression == 2 {"gzip"} else {"none"},
+        "tileSample": sample,
+        "sampleDecodingMethod": "Terrarium R*256+G+B/256-32768",
+        "verticalDatumId": serde_json::Value::Null,
+        "verticalDatumVerified": false,
+        "sourceLicenseVerified": false,
+        "nativeResolutionVerified": false,
+        "productionGenerationReady": false,
+        "requires": "Independent version-pinned release, region-specific rights, attribution, native resolution, vertical datum and disconnected Windows acceptance"
+    }))
+}
+
 /// Release, region rights and datum MUST be established outside this parser.
 /// These are never inferred from PMTiles zoom, JSON tile attribution or WGS84.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceDeclaration {
     pub source_name: String,
     pub release_id: String,
