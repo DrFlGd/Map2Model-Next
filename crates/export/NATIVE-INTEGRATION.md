@@ -15,6 +15,12 @@ Product owner confirmed that the v0.0.2 Windows GUI's SYNTHETIC 3MF export loads
 
 The native worker must accept the grid **only** from Agent 2's verified offline decode or an explicitly labeled original synthetic-test-fixture. Do not trust renderer-provided archive files/paths, grid samples, arbitrary operations, URLs, or destination paths. The native Save dialog/project store owns the destination. A canonical manifest or source archive SHA is not independent proof of a real source's rights/datum, and an envelope-only synthetic manifest is not production coverage evidence.
 
+## Coverage-first map review
+
+The product owner prioritized a **native selected-file coverage bbox overlay** plus inside/partial/outside intersection feedback. Agent 2 must provide SHA-pinned PMTiles header/index evidence; the Lead renders the map and maintains fresh selection/zoom/source binding. See [COVERAGE-AWARE-EXPORT-REVIEW.md](COVERAGE-AWARE-EXPORT-REVIEW.md) for proposed G2-only DTO, warning wording, closed-seam and sparse-index semantics, negative tests and source/user-responsibility restrictions.
+
+**Export rule:** header bbox overlap alone is advisory, never a proof of indexed tile completeness. Partial, outside, missing zoom, header-only and stale source/selection results cannot authorize a separate experimental 3MF. Only **matching exact source SHA, selection ID/bbox, zoom, native index coverage `inside` AND successful complete candidate WebP decode** may reach the separately consented experimental mesh adapter; the source licence/datum/native accuracy remain unverified. Do not extend or relax frozen `TerrainSourceManifestV1` to carry an experimental map checkbox. The existing verified `validate_build` already rejects out-of-grid metric clips/missing clipped samples; `tests/varied_grids.rs` now checks partial/outside and missing-sample cases. No new core writer or G0 V1 changes are requested.
+
 ## Lifecycle boundary
 
 1. Lead authenticates/bounds native input; Agent 2 resolves offline verified source token and materializes `ElevationGridV1`; validate grid/source/selection and frozen hashes.
