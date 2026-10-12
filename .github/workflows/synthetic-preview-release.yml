@@ -101,10 +101,17 @@ jobs:
           $PSNativeCommandUseErrorActionPreference=$false
           $bad=Join-Path $env:RUNNER_TEMP 'g2-disallowed-job.3mf'
           & ./target/release/map2model-engine.exe --export-local-experimental $input $sha $selected 12 g2-unapproved-test-001 WRONG_POLICY $bad
-          if($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $bad)){throw 'Unacknowledged source was exported'}
+          $deniedConsentExit=$LASTEXITCODE
+          if($deniedConsentExit -eq 0 -or (Test-Path -LiteralPath $bad)){throw 'Unacknowledged source was exported'}
           $badHash=Join-Path $env:RUNNER_TEMP 'g2-bad-hash.3mf'
           & ./target/release/map2model-engine.exe --export-local-experimental $input ('0'*64) $selected 12 g2-tampered-test-001 $policy $badHash
-          if($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $badHash)){throw 'Tampered source was exported'}
+          $deniedHashExit=$LASTEXITCODE
+          if($deniedHashExit -eq 0 -or (Test-Path -LiteralPath $badHash)){throw 'Tampered source was exported'}
+          Write-Output "PASS: invalid consent and tampered source both denied with nonzero native exits; no files published"
+          # GitHub's pwsh wrapper exits with the most recent native process code;
+          # that code is intentionally nonzero for the TWO asserted negative tests.
+          # Reset only after both explicit nonzero and absent-file assertions.
+          $global:LASTEXITCODE=0
       - name: Install Electron and pinned UI tools
         run: npm install --no-audit --no-fund
       - name: Test production Electron state availability regression and offline shell
