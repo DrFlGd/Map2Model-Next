@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 import {selectionFromBbox} from '../shared/selection.mjs';
-import {coveragePolygon,coverageMessage,coverageAdmitsExperiment} from '../shared/coverage.mjs';
+import {coveragePolygon,coverageMessage,coverageAdmitsExperiment,approvedExperimentalExportPayload} from '../shared/coverage.mjs';
 
 const EMPTY_STYLE={version:8,sources:{},layers:[{id:'local-background',type:'background',paint:{'background-color':'#edf2ed'}}]};
 const emptyStatus={offline:true,networkEnabled:false,libraryConfigured:false,libraryLabel:null,
@@ -206,12 +206,11 @@ export function App(){
    setMessage('Local source loaded. Its approximate blue boundary is on the map; draw or adjust the green rectangle within it.');
  });
  const exportExperimental=()=>action(async()=>{
-   if(!experimentalSource||!experimentalAccepted||
-      !coverageAdmitsExperiment(coverageStatus,selection,experimentalSource))
-     throw Error('INVALID_SELECTION: indexed coverage and explicit single-job consent required');
-   const job=experimentalSource;
+   const request=approvedExperimentalExportPayload(
+     coverageStatus,selection,experimentalSource,experimentalAccepted);
    setExperimentalSource(null);setExperimentalAccepted(false);
-   const result=await api.exportExperimentalLocal(job.jobId,job.selectionId,true);
+   const result=await api.exportExperimentalLocal(
+     request.jobId,request.selectionId,request.accepted);
    if(result.canceled){setMessage('Experimental export cancelled.');return;}
    setMessage('EXPERIMENTAL PRIVATE 3MF '+result.fileName+' · '+result.vertices+
      ' vertices · archive SHA '+result.sourceArchiveSha256+' · package SHA '+result.packageSha256);
