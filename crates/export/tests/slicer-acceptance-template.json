@@ -1,0 +1,52 @@
+{
+  "schema": "map2model-slicer-manual-acceptance-v1",
+  "evidenceStatus": "not-tested",
+  "source": {
+    "githubActionsRun": "https://github.com/DrFlGd/Map2Model-Next/actions/runs/38098914848",
+    "artifactName": "a3-02-rust-3mf-windows-latest",
+    "packageSha256": "8463789ff97816d3dccd8b8085444c623150fb68417f3da04eafe9364afce675"
+  },
+  "windowsVersion": null,
+  "networkDisconnected": null,
+  "targetAabbMm": [
+    0,
+    0,
+    0,
+    180,
+    80,
+    204
+  ],
+  "dimensionToleranceMm": 0.05,
+  "tests": [
+    {
+      "slicer": "PrusaSlicer",
+      "exactVersion": null,
+      "executableBuild": null,
+      "loaded": null,
+      "autoRepair": null,
+      "warnings": [],
+      "measuredAabbMm": null,
+      "orientationCorrect": null,
+      "sliceCompleted": null,
+      "previewScreenshot": null,
+      "sliceScreenshot": null,
+      "notes": null
+    },
+    {
+      "slicer": "Bambu Studio",
+      "exactVersion": null,
+      "executableBuild": null,
+      "loaded": null,
+      "autoRepair": null,
+      "warnings": [],
+      "measuredAabbMm": null,
+      "orientationCorrect": null,
+      "sliceCompleted": null,
+      "previewScreenshot": null,
+      "sliceScreenshot": null,
+      "notes": null
+    }
+  ],
+  "approvedBy": null,
+  "acceptedAt": null
+}
