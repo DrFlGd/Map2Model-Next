@@ -217,7 +217,7 @@ fn coverage_query_rejects_mutated_source_nonfinite_invalid_bbox_oversize_and_bad
     );
     // Valid WGS84 but enormous z22 scan is not silently labelled partial.
     rejected(
-        cover(&file, Some(&digest), Some(SEAM_BBOX), Some("22")),
+        cover(&file, Some(&digest), Some(["-84.025", "39.700", "-84.010", "39.715"]), Some("22")),
         "OUT_OF_MEMORY",
     );
 
